@@ -285,15 +285,29 @@ def studentNumber(userName=None):
     return int(match.group()) if match else 1
 
 
+def studentPortOffset():
+    """A unique, stable per-student port offset from the login UID.
+
+    Real NetIDs (npyrz2, osule2, jdoe2, ...) routinely share a trailing digit,
+    so deriving ports from digits-in-the-username would collide on the shared
+    host. The UID is unique per account, so uid-based offsets do not. Bounded so
+    ports stay in a sane band even for unusually high UIDs."""
+    try:
+        uid = os.getuid()
+    except Exception:
+        uid = 1001
+    return (uid - 1000) % 900 + 1
+
+
 def setupLab(labName, ports=None, portOverrides=None, extraEnv=None):
     """Set up this lab's identity, unique ports, and shared labEnv.sh.
 
     labName        folder name under ~ (e.g. "telemetryLab"); labEnv.sh
                    is written there so terminal scripts can `source` it.
-    ports          dict of ENV_NAME -> basePort. Each becomes basePort + the
-                   digits in your username, e.g. {"PORT": 5000} gives
-                   student07 -> 5007. Multiple entries give multiple unique
-                   ports (e.g. {"INFLUX_PORT": 8000, "GRAFANA_PORT": 3000}).
+    ports          dict of ENV_NAME -> basePort. Each becomes basePort + a
+                   unique per-student offset from your login UID (so real NetIDs
+                   that share a digit don't collide). Multiple entries give
+                   multiple unique ports (e.g. {"INFLUX_PORT": 8000, ...}).
     portOverrides  dict of ENV_NAME -> int to force specific ports.
     extraEnv       dict of additional static env values (e.g. NVIDIA_IMAGE).
 
@@ -306,25 +320,25 @@ def setupLab(labName, ports=None, portOverrides=None, extraEnv=None):
     extraEnv = extraEnv or {}
 
     if not os.environ.get("USER"):
-        os.environ["USER"] = "student01"
+        try:
+            import pwd as _pwd
+            os.environ["USER"] = _pwd.getpwuid(os.getuid()).pw_name
+        except Exception:
+            os.environ["USER"] = "student01"
     userName = os.environ["USER"]
-    number = studentNumber(userName)
+    number = studentPortOffset()
 
     resolved = {"USER": userName}
     envLines = [
         f"# {labName} shared environment - sourced by every helper script.",
-        "# Ports are derived from the digits in your username "
-        f"(e.g. student07 -> base+7).",
-        'studentNum=$(echo "$USER" | grep -oE \'[0-9]+\' | head -n1)',
+        "# Ports are unique per student (derived from your login UID) so they",
+        "# never collide with another student's on the shared host.",
     ]
     for envName, basePort in ports.items():
         value = int(portOverrides.get(envName, basePort + number))
         os.environ[envName] = str(value)
         resolved[envName] = value
-        if envName in portOverrides:
-            envLines.append(f"export {envName}={value}")
-        else:
-            envLines.append(f"export {envName}=$(({basePort} + 10#${{studentNum:-1}}))")
+        envLines.append(f"export {envName}={value}")   # literal -> terminal matches the notebook
     for envName, envValue in extraEnv.items():
         os.environ[envName] = str(envValue)
         resolved[envName] = envValue
