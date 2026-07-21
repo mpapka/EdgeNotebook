@@ -537,7 +537,12 @@ def containerRunning(name):
 def imageExists(name):
     def probe():
         out, _ = runShell(["docker", "images", "--format", "{{.Repository}}:{{.Tag}}"])
-        ok = any(line.startswith(name) for line in out.strip().splitlines())
+        # Podman lists FULLY-QUALIFIED names (docker.io/library/hello-world:latest,
+        # localhost/<user>-nvidia-check:latest), so match on the last path component
+        # too, not just a prefix of the whole line.
+        target = name.split("/")[-1]
+        ok = any(line.startswith(name) or line.split("/")[-1].startswith(target)
+                 for line in out.strip().splitlines())
         return ok, f"image {name} {'present' if ok else 'not found'}"
     return probe
 
