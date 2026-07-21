@@ -333,6 +333,7 @@ def setupLab(labName, ports=None, portOverrides=None, extraEnv=None):
         f"# {labName} shared environment - sourced by every helper script.",
         "# Ports are unique per student (derived from your login UID) so they",
         "# never collide with another student's on the shared host.",
+        f"export USER={userName}",
     ]
     for envName, basePort in ports.items():
         value = int(portOverrides.get(envName, basePort + number))
