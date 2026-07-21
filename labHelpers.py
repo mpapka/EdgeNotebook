@@ -299,6 +299,30 @@ def studentPortOffset():
     return (uid - 1000) % 900 + 1
 
 
+def deviceName():
+    """A short, stable identifier for THIS machine, QUERIED from the system so labs
+    are portable across boxes (Jetson Thor/Orin, DGX Spark, ...) instead of hardcoding
+    a device name. Prefers the hostname; falls back to the GPU model, then 'edge'.
+    Override with DEVICE_NAME in the environment if you want a specific label."""
+    override = os.environ.get("DEVICE_NAME")
+    if override:
+        return override
+    try:
+        host = socket.gethostname().split(".")[0].strip().lower()
+        if host and host != "localhost":
+            return host
+    except Exception:
+        pass
+    try:
+        out, code = runShell(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+                             timeoutSeconds=5)
+        if code == 0 and out.strip():
+            return re.sub(r"[^a-z0-9]+", "", out.strip().split()[-1].lower()) or "edge"
+    except Exception:
+        pass
+    return "edge"
+
+
 def setupLab(labName, ports=None, portOverrides=None, extraEnv=None):
     """Set up this lab's identity, unique ports, and shared labEnv.sh.
 
