@@ -330,6 +330,11 @@ def setupLab(labName, ports=None, portOverrides=None, extraEnv=None):
         resolved[envName] = envValue
         envLines.append(f"export {envName}={envValue}")
 
+    deviceAddr = deviceAddress()
+    os.environ["DEVICE_ADDR"] = deviceAddr
+    resolved["DEVICE_ADDR"] = deviceAddr
+    envLines.append(f"export DEVICE_ADDR={deviceAddr}")
+
     labDir = pathlib.Path.home() / labName
     labDir.mkdir(parents=True, exist_ok=True)
     envPath = labDir / "labEnv.sh"
@@ -422,10 +427,36 @@ def envVarSet(envName):
     return probe
 
 
+def deviceAddress():
+    """The address to reach a *published container port* from where THIS code runs.
+
+    On a normal Docker host the container shares your network, so localhost works.
+    In the class notebook the engine is the student's own rootless Podman on the
+    HOST (driven over a socket), so a container's published port lives at the host's
+    address -- and from inside the notebook that is the default-route gateway, not
+    127.0.0.1. Override with LAB_HOST_ADDR if your device needs a specific address.
+    """
+    override = os.environ.get("LAB_HOST_ADDR")
+    if override:
+        return override
+    remote = os.environ.get("DOCKER_HOST", "") or os.environ.get("CONTAINER_HOST", "")
+    if "/podman/podman.sock" in remote:
+        try:
+            with open("/proc/net/route") as routeFile:
+                for line in routeFile.readlines()[1:]:
+                    fields = line.split()
+                    if len(fields) > 2 and fields[1] == "00000000":
+                        gwHex = fields[2]
+                        return ".".join(str(int(gwHex[i:i + 2], 16)) for i in (6, 4, 2, 0))
+        except Exception:
+            pass
+    return "127.0.0.1"
+
+
 def dockerDaemonUp():
     def probe():
-        out, code = runShell(["docker", "info", "--format", "{{.ServerVersion}}"])
-        ok = code == 0 and out.strip() and "not found" not in out and "Cannot connect" not in out
+        out, code = runShell(["docker", "version", "--format", "{{.Server.Version}}"])
+        ok = code == 0 and out.strip() and "Cannot connect" not in out and "rror" not in out
         return bool(ok), (f"server {out.strip()}" if ok else "daemon not reachable")
     return probe
 
@@ -440,9 +471,18 @@ def composeAvailable():
 
 def nvidiaRuntimeAvailable():
     def probe():
-        out, _ = runShell(["docker", "info", "--format", "{{.Runtimes}}"])
-        ok = "nvidia" in out
-        return ok, "nvidia runtime available" if ok else "nvidia runtime not found"
+        info, _ = runShell(["docker", "info"])
+        if "nvidia" in info.lower():
+            return True, "nvidia runtime available"
+        for img in ("docker.io/library/ubuntu:24.04", "ubuntu:24.04", "alpine", "busybox"):
+            out, code = runShell(["docker", "run", "--rm", "--pull=never",
+                                  "--device", "nvidia.com/gpu=all", img, "true"], timeoutSeconds=30)
+            if code == 0:
+                return True, "GPU via CDI (nvidia.com/gpu)"
+            low = out.lower()
+            if not any(s in low for s in ("no such image", "unable to find", "not known", "manifest unknown")):
+                return False, "GPU device nvidia.com/gpu not available: " + out.strip()[:80]
+        return True, "GPU via CDI expected (Part 9 will verify)"
     return probe
 
 
@@ -471,15 +511,16 @@ def volumeExists(name):
     return probe
 
 
-def portListening(port, host="127.0.0.1"):
+def portListening(port, host=None):
     def probe():
+        checkHost = host or deviceAddress()
         probeSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         probeSocket.settimeout(2)
         try:
-            openOk = probeSocket.connect_ex((host, int(port))) == 0
+            openOk = probeSocket.connect_ex((checkHost, int(port))) == 0
         finally:
             probeSocket.close()
-        return openOk, f"port {port} {'accepting connections' if openOk else 'not reachable'}"
+        return openOk, f"port {port} on {checkHost} {'accepting connections' if openOk else 'not reachable'}"
     return probe
 
 
