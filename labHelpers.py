@@ -650,15 +650,16 @@ def renderCheckTable(title, checks, infoRows=None):
     table.add_column("check", style="cyan", overflow="fold")
     table.add_column("result")
     table.add_column("detail", overflow="fold")
+    from rich.markup import escape   # labels/details may contain [..] that Rich would eat as markup
     failures = []
     for item in checks:
         ok, detail = runProbe(item["probe"])
         mark = "[green]✓ ok[/]" if ok else "[red]✗ failed[/]"
-        table.add_row(item["label"], mark, detail)
+        table.add_row(escape(str(item["label"])), mark, escape(str(detail)))
         if not ok:
             failures.append(item)
     for infoLabel, infoValue in (infoRows or []):
-        table.add_row(infoLabel, "[cyan]info[/]", str(infoValue))
+        table.add_row(escape(str(infoLabel)), "[cyan]info[/]", escape(str(infoValue)))
     richConsole.print(table)
     return failures
 
