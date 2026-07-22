@@ -492,6 +492,47 @@ def deviceAddress():
     return "127.0.0.1"
 
 
+def showDashboard(port=None, path="/", label="your service"):
+    """Show a web service you published from a container, two ways:
+
+      1. an interactive **browser** link through JupyterHub (jupyter-server-proxy) -
+         clicks and live updates work there, and
+      2. a one-time **inline snapshot** the kernel fetches, so you can confirm it's
+         serving right here even though your laptop browser can't reach the host port
+         directly.
+
+    Your container publishes its port on the edge device (the host), reached from this
+    notebook via deviceAddress(); the browser reaches it via the Hub-proxied URL.
+    `port` defaults to your $PORT."""
+    port = str(port or os.environ.get("PORT", "")).strip()
+    addr = deviceAddress()
+    target = "http://%s:%s%s" % (addr, port, path)
+    prefix = os.environ.get("JUPYTERHUB_SERVICE_PREFIX", "/")
+    proxy = "%sproxy/%s:%s%s" % (prefix, addr, port, path)
+    try:
+        import urllib.request
+        with urllib.request.urlopen(target, timeout=5) as resp:
+            body = resp.read(200000).decode("utf-8", "replace")
+        status = '<span style="color:#3fb950">&#9679; serving</span>'
+        snap = ('<div style="border:1px solid #3a3f44;border-radius:6px;padding:8px;'
+                'margin-top:6px;max-height:340px;overflow:auto;background:#fff">%s</div>' % body)
+    except Exception as fetchError:
+        status = '<span style="color:#f85149">&#9679; not reachable</span>'
+        snap = ('<div style="color:#f85149;margin-top:6px">Could not reach <code>%s</code> - '
+                'is the container running and published on port %s? (%s)</div>'
+                % (target, port, str(fetchError)[:90]))
+    try:
+        from IPython.display import HTML, display
+        display(HTML(
+            '<div style="font-family:system-ui;font-size:14px">'
+            '<b>%s</b> &nbsp; %s<br>'
+            '<b>Open interactively:</b> <a href="%s" target="_blank">%s</a> '
+            '<small>(proxied through JupyterHub - the snapshot below is a one-time fetch)</small>'
+            '%s</div>' % (label, status, proxy, proxy, snap)))
+    except Exception:
+        print("%s: %s   |   browser: %s" % (label, target, proxy))
+
+
 def dockerDaemonUp():
     def probe():
         out, code = runShell(["docker", "version", "--format", "{{.Server.Version}}"])
