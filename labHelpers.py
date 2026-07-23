@@ -771,6 +771,154 @@ def labSummary(labTitle="Lab progress"):
                  "and re-run their checkpoint cells.", kind="warn")
 
 
-print("labHelpers ready - setupLab, preflight, checkpoint, labSummary, "
+# --------------------------------------------------------------------------
+# End-of-lab feedback - a star rating + free-form comment the student submits
+# in-cell (no external form). Writes JSONL to ~/.feedback/ (private to them);
+# the instructor harvests it centrally off the box. Reusable across every lab.
+# --------------------------------------------------------------------------
+
+def feedbackIdentity():
+    """(netid, fullName) for the current student. netid from USER; fullName from
+    the account's GECOS field when provisioning set it, else the netid."""
+    netid = os.environ.get("USER") or ""
+    fullName = ""
+    try:
+        import pwd
+        entry = pwd.getpwuid(os.getuid())
+        netid = netid or entry.pw_name
+        fullName = (entry.pw_gecos or "").split(",")[0].strip()
+    except Exception:
+        pass
+    netid = netid or "unknown"
+    return netid, (fullName or netid)
+
+
+def writeFeedback(notebook, answers):
+    """Save one submission as JSONL, one row per question, to ~/.feedback/.
+
+    answers is a list of (question, answer). Each row carries the schema the
+    instructor collects: ts, netid, name, notebook, question, answer. The file
+    name is unpredictable so no one can pre-create (and thus block) yours."""
+    import datetime
+    import secrets
+    netid, fullName = feedbackIdentity()
+    timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+    slug = re.sub(r"[^a-z0-9]+", "-", str(notebook).lower()).strip("-") or "lab"
+    outDir = Path.home() / ".feedback"
+    outDir.mkdir(parents=True, exist_ok=True)
+    destPath = outDir / f"{slug}-{netid}-{secrets.token_hex(4)}.jsonl"
+    with destPath.open("w") as handle:
+        for question, answer in answers:
+            handle.write(json.dumps({
+                "ts": timestamp, "netid": netid, "name": fullName,
+                "notebook": str(notebook), "question": str(question),
+                "answer": "" if answer is None else str(answer),
+            }) + "\n")
+    return destPath
+
+
+def starRatingWidget(maxStars=5):
+    """A row of clickable star buttons. Returns (widget, state); state['value']
+    holds the 1..maxStars rating (0 until the student clicks)."""
+    import ipywidgets as widgets
+    state = {"value": 0}
+    stars = [widgets.Button(description="☆",   # empty star
+                            layout=widgets.Layout(width="42px"))
+             for _ in range(maxStars)]
+
+    def paint(count):
+        for index, button in enumerate(stars):
+            filled = index < count
+            button.description = "★" if filled else "☆"   # full / empty star
+            button.button_style = "warning" if filled else ""
+
+    def makeHandler(index):
+        def handler(_):
+            state["value"] = index + 1
+            paint(index + 1)
+        return handler
+
+    for index, button in enumerate(stars):
+        button.on_click(makeHandler(index))
+    return widgets.HBox(stars), state
+
+
+def feedback(notebook, questions=None, maxStars=5):
+    """Collect end-of-lab feedback and save it for the instructor.
+
+    Renders a star rating, a free-form comment box, and a Submit button
+    (ipywidgets, self-installed if missing). Any extra `questions` (list of
+    strings) get their own comment boxes. On Submit, one JSONL row per question
+    is written to ~/.feedback/. Nothing opens outside the notebook. Where widgets
+    are unavailable (a plain terminal), it falls back to text prompts.
+
+    notebook   the lab's human title, stored on every row (e.g. "Telemetry").
+    questions  optional extra free-form prompts beyond the standard two.
+    """
+    ratingLabel = f"How would you rate this lab? (1-{maxStars} stars)"
+    commentLabel = "Anything confusing, broken, or worth improving? (optional)"
+    extraQuestions = list(questions or [])
+
+    # Preferred path: an in-cell widget form.
+    try:
+        ensureDependencies(["ipywidgets"])
+        import ipywidgets as widgets
+
+        starBox, starState = starRatingWidget(maxStars)
+        wideBox = widgets.Layout(width="98%", max_width="760px", height="90px")
+        commentBox = widgets.Textarea(placeholder="Type your feedback here...", layout=wideBox)
+        extraBoxes = [(question,
+                       widgets.Textarea(placeholder="(optional)",
+                                        layout=widgets.Layout(width="98%", max_width="760px",
+                                                              height="60px")))
+                      for question in extraQuestions]
+        submitButton = widgets.Button(description="Submit feedback",
+                                      button_style="success", icon="paper-plane")
+        outputArea = widgets.Output()
+
+        def onSubmit(_):
+            with outputArea:
+                if not starState["value"] and not commentBox.value.strip():
+                    showNote("Pick a star rating or add a comment before submitting.", kind="warn")
+                    return
+                answers = [(ratingLabel, starState["value"] or ""),
+                           (commentLabel, commentBox.value.strip())]
+                answers += [(question, box.value.strip()) for question, box in extraBoxes]
+                writeFeedback(notebook, answers)
+                submitButton.disabled = True
+                submitButton.description = "Submitted - thank you!"
+                showNote("Thanks. Your feedback was recorded for the instructor.", kind="ok")
+
+        submitButton.on_click(onSubmit)
+
+        def labelHTML(text):
+            return widgets.HTML(f'<b style="font-family:system-ui;font-size:14px">'
+                                f'{htmlLib.escape(text)}</b>')
+
+        rows = [labelHTML(ratingLabel), starBox, labelHTML(commentLabel), commentBox]
+        for question, box in extraBoxes:
+            rows += [labelHTML(question), box]
+        rows += [submitButton, outputArea]
+        display(widgets.VBox(rows))
+        return
+    except Exception:
+        pass   # fall through to the text prompt below
+
+    # Fallback: plain prompts (terminal / no widget support). Same JSONL result.
+    def ask(prompt):
+        try:
+            return input(prompt).strip()
+        except EOFError:
+            return ""
+
+    answers = [(ratingLabel, ask(f"{ratingLabel}\n  stars (1-{maxStars}, Enter to skip): ")),
+               (commentLabel, ask(f"{commentLabel}\n  > "))]
+    for question in extraQuestions:
+        answers.append((question, ask(f"{question}\n  > ")))
+    writeFeedback(notebook, answers)
+    print("Thanks. Your feedback was recorded for the instructor.")
+
+
+print("labHelpers ready - setupLab, preflight, checkpoint, labSummary, feedback, "
       "showFile, showScriptCard, showEnvCard, showNote, "
       "dockerVersions, dockerPs, dockerLogs + check predicates")
