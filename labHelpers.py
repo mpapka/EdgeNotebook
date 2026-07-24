@@ -919,6 +919,70 @@ def feedback(notebook, questions=None, maxStars=5):
     print("Thanks. Your feedback was recorded for the instructor.")
 
 
+# --------------------------------------------------------------------------
+# Publication-quality figures - house style + save helper (labDD)
+# --------------------------------------------------------------------------
+
+# Okabe-Ito: a colorblind-safe qualitative palette. Safe for deuteranopia,
+# protanopia, and grayscale printing when paired with distinct markers.
+OKABE_ITO = ["#0072B2", "#D55E00", "#009E73", "#CC79A7",
+             "#E69F00", "#56B4E9", "#F0E442", "#000000"]
+FIGURE_MARKERS = ["o", "s", "^", "D", "v", "P", "X", "*"]
+FIGURE_LINESTYLES = ["-", "--", "-.", ":"]
+
+
+def applyHouseStyle():
+    """Set matplotlib rcParams for report and paper quality figures: readable
+    fonts, a colorblind-safe color cycle, light grid, no top/right spines, and
+    vector-friendly output. Call once near the top of a plotting notebook.
+    Returns the color palette so you can index it per series."""
+    ensureDependencies(["matplotlib"])
+    import matplotlib as mpl
+    from cycler import cycler
+    mpl.rcParams.update({
+        "figure.figsize": (6.0, 3.7),
+        "figure.dpi": 110,
+        "savefig.dpi": 300,
+        "savefig.bbox": "tight",
+        "font.size": 11,
+        "axes.titlesize": 12,
+        "axes.labelsize": 11,
+        "axes.grid": True,
+        "grid.alpha": 0.3,
+        "grid.linewidth": 0.6,
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+        "axes.prop_cycle": cycler(color=OKABE_ITO),
+        "legend.frameon": False,
+        "lines.linewidth": 1.8,
+        "lines.markersize": 5,
+        "pdf.fonttype": 42,   # embed TrueType so text stays editable in the PDF
+        "ps.fonttype": 42,
+    })
+    return list(OKABE_ITO)
+
+
+def saveFigure(fig, name, figuresDir="figures", formats=("pdf", "png")):
+    """Save a figure for a report or paper. Writes both a vector PDF (for
+    LaTeX/print) and a raster PNG (for slides/web) into a figures/ folder next
+    to your work, with a tight bounding box. Returns the list of paths written.
+
+        fig        a matplotlib Figure (e.g. from plt.subplots())
+        name       base filename, no extension (e.g. "latency_by_model")
+        figuresDir folder to write into, created if missing
+        formats    file types to write (default PDF + PNG)
+    """
+    outDir = pathlib.Path(figuresDir)
+    outDir.mkdir(parents=True, exist_ok=True)
+    written = []
+    for extension in formats:
+        target = outDir / f"{name}.{extension}"
+        fig.savefig(target, bbox_inches="tight")
+        written.append(target)
+    showNote("Saved " + ", ".join(f"<code>{p}</code>" for p in written), kind="ok")
+    return written
+
+
 print("labHelpers ready - setupLab, preflight, checkpoint, labSummary, feedback, "
-      "showFile, showScriptCard, showEnvCard, showNote, "
+      "showFile, showScriptCard, showEnvCard, showNote, applyHouseStyle, saveFigure, "
       "dockerVersions, dockerPs, dockerLogs + check predicates")
