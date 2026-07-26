@@ -15,6 +15,18 @@ their copy to the latest `main` — so fixes here reach everyone automatically.
 Students sign in to the Hub with an instructor-issued account and password (they don't clone, push,
 or manage credentials themselves).
 
+## Lab order and prerequisites
+
+The numbered notebooks **`lab00Docker` … `lab09Fleet`** are the core course sequence and are
+meant to be done in order.
+
+Four optional on-ramps come before them: **AA** Linux command basics, **BB** Python and Jupyter,
+**CC** synthetic experiment data, **DD** research-quality figures. These are **independent** — do
+any subset, in any order, or skip them. None requires another: DD uses the `experiment.csv` that CC
+writes to `~/experimentLab` *if it is there*, and otherwise generates a stand-in dataset, so you can
+run DD without CC (or without AA/BB). Any real "run X first" dependency a lab has will be stated
+here in this README, not assumed inside the notebook.
+
 ## The runtime these labs target
 
 The class box is an **NVIDIA DGX Spark (GB10)** running JupyterHub. The key design point: containers
