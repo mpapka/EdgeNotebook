@@ -64,6 +64,49 @@ few things are **shared or rate-limited** — those are what to watch under load
    same disk. Concurrent first-time pulls/builds contend; expect the first fleet run
    to be slower than steady state.
 
+## Pre-flight checklist (run once before each fleet run)
+
+Do these in order. Each has a pass criterion; stop and fix before spawning the fleet.
+
+Automatable checks (copy-paste; the image check needs sudo for the rootful store):
+
+```bash
+# 1. GPU healthy (no post-reboot driver/library mismatch)
+nvidia-smi -L || echo "FAIL: GPU unusable -- reboot if it says 'Driver/library version mismatch'"
+
+# 2. Hub AND the boot warm-up unit are up
+systemctl is-active jupyterhub dgxhub-warm-notebook     # expect: active / active
+
+# 3. Image is current and carries the viz stack (needed for Lab DD)
+sudo podman run --rm -e NVIDIA_VISIBLE_DEVICES=void dgxhub/notebook:latest \
+  python -c "import seaborn, altair, vl_convert; print('viz ok')" \
+  || echo "FAIL: rebuild with  sudo dgxhub/20-build-notebook-image.sh"
+
+# 4. Fleet accounts exist, are in the class group, and have DISTINCT uids
+ACCOUNTS="test01 test02 test03"            # <- your fleet
+for u in $ACCOUNTS; do id "$u" 2>/dev/null || echo "MISSING: $u"; done
+echo "duplicate uids (must print nothing):"
+for u in $ACCOUNTS; do id -u "$u"; done | sort | uniq -d
+
+# 5. Baseline resources -- record now, compare after the run
+nvidia-smi --query-gpu=memory.used,memory.total,utilization.gpu --format=csv,noheader
+free -h | sed -n '1,2p'
+df -h / /var/lib/containers 2>/dev/null || df -h /
+```
+
+Procedural checks (not scriptable):
+
+6. **Warm the hub with ONE spawn first.** Spawn a single test student through the hub
+   and confirm JupyterLab loads. That makes the image hot for everyone. Only launch
+   the fleet after this one succeeds -- never mass-spawn on a cold box.
+
+7. **Confirm the SHA under test.** Each student's `~/EdgeNotebook` should be freshly
+   pulled to the intended commit. Record `git -C ~<user>/EdgeNotebook rev-parse HEAD`
+   and confirm it matches `origin/main` (or the tag you are testing).
+
+Green board -> launch the fleet, **staggered** a few seconds apart, and cap how many
+run GPU-heavy labs (lab05/lab06) simultaneously.
+
 ## Reporting under concurrency
 
 - Report **per student** and an **aggregate**. A real notebook bug fails the **same
