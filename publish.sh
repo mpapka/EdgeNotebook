@@ -32,6 +32,7 @@ if ! git -C "$REPO" worktree list --porcelain | grep -qx "worktree $WT"; then
 fi
 git -C "$WT" checkout -q release
 git -C "$WT" reset -q --hard origin/release
+git -C "$WT" clean -fdq            # worktree == release exactly; no stray untracked files
 
 if [ "${1:-}" = "--list" ]; then
   echo "On release now (students get these):"; git -C "$WT" ls-files; exit 0
@@ -47,7 +48,7 @@ for lab in "$@"; do
   git -C "$WT" checkout main -- "$f"
   files+=("$f"); echo "  + $f"
 done
-git -C "$WT" add -A
+git -C "$WT" add -- labHelpers.py "${files[@]}"   # explicit: never sweep in stray files
 if git -C "$WT" diff --cached --quiet; then
   echo "release already current for: $*"
 else
