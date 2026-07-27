@@ -57,6 +57,13 @@ writes to `~/experimentLab` *if it is there*, and otherwise generates a stand-in
 run DD without CC (or without AA/BB). Any real "run X first" dependency a lab has will be stated
 here in this README, not assumed inside the notebook.
 
+One optional capstone comes **after** the core sequence: **EE** cross-device performance. It leans
+on the method from CC, the figures from DD, and the benchmarking ideas from `lab06`, so it is best
+done once those are behind you. Students write one portable `benchmark.py` (run with `uv`, so it
+carries to any machine), measure this DGX and a second device, then merge the results and compare
+compute, memory bandwidth, memory capacity, and sustained thermal behaviour. It ships a real DGX
+Spark baseline so the comparison works even from a single machine.
+
 ## The runtime these labs target
 
 The class box is an **NVIDIA DGX Spark (GB10)** running JupyterHub. The key design point: containers
@@ -81,6 +88,8 @@ equivalent — because knowing that edge fleets mix hardware is part of the cour
 ## Layout
 
 - `lab00Docker` … `lab09Fleet` — the labs, in course order.
+- `labAALinux`, `labBBPython`, `labCCDataCollection`, `labDDPlotting` — optional on-ramps (before
+  the core sequence); `labEEPerformance` — optional cross-device capstone (after it).
 - `labHelpers.py` — shared toolkit imported by every lab: `setupLab` (per-student identity + ports +
   `labEnv.sh`), `preflight`/`checkpoint` graded checks, `deviceAddress()`, `deviceName()`, and Docker/
   Podman/GPU probes.
