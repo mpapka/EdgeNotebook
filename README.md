@@ -8,12 +8,42 @@ management — by having students *build and run real containers and services on
 ## How students use it
 
 The labs are launched from the class JupyterHub, **not** cloned by hand. Each **Launch** button on
-the course site is an [nbgitpuller](https://nbgitpuller.readthedocs.io/) link that pulls this repo
-into the student's `~/EdgeNotebook` and opens the lab. A student's next Launch click fast-forwards
-their copy to the latest `main` — so fixes here reach everyone automatically.
+the course site is an [nbgitpuller](https://nbgitpuller.readthedocs.io/) link that pulls the
+**`release`** branch (see *Releasing labs* below) into the student's `~/EdgeNotebook` and opens the
+lab. A student's next Launch click fast-forwards their copy to the latest `release` — so fixes reach
+everyone automatically, and students only ever have the notebooks that have been released.
 
 Students sign in to the Hub with an instructor-issued account and password (they don't clone, push,
 or manage credentials themselves).
+
+## Releasing labs (weekly rollout, instructor)
+
+Two branches:
+
+- **`main`** — where you develop and test (all notebooks + these docs + `publish.sh`). The
+  Hermes test agents clone `main`. Students never see it.
+- **`release`** — what students pull. It holds only `labHelpers.py` plus the notebooks that have
+  been released so far. Orphan history, so the docs never appear even in `git log`.
+
+Release one or more labs with a single command:
+
+```bash
+./publish.sh lab01              # accepts lab01, lab01DevTooling, or a full filename
+./publish.sh lab01 lab02        # several at once
+./publish.sh --list             # show what students currently have
+```
+
+`publish.sh` does both halves of a rollout: it copies the notebook(s) + current `labHelpers.py`
+onto `release` **and** flips `published: true` on the matching course-site lab card so the Labs
+page starts listing that lab (the site auto-deploys on push). Until a lab is published, students
+cannot pull it and its card is not built at all. Develop freely on `main`; ship week by week.
+
+Notes:
+- A dedicated worktree, `../EdgeNotebook-release`, is created automatically so your `main`
+  checkout is never disturbed.
+- The course-site checkout is assumed at `../UIC_Course_Website`; override with `COURSE_SITE_DIR`.
+  If the site is absent, the card step is skipped and only the notebook is released.
+- To fix a released lab, just re-run `./publish.sh <lab>` — it re-syncs that notebook from `main`.
 
 ## Lab order and prerequisites
 
