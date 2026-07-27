@@ -1,23 +1,29 @@
 #!/usr/bin/env bash
 # ============================================================================
-# publish.sh — release lab notebook(s) to students.
+# publish.sh — release lab notebook(s) to students, in one step.
 #
-# nbgitpuller pulls the `release` branch into each student's ~/EdgeNotebook. This
-# copies the named notebook(s) PLUS the current labHelpers.py from `main` onto
-# `release`. The .md docs, this script, and any unreleased labs never touch
-# `release`, so students only ever get what you have published.
+# Does BOTH halves of a weekly rollout:
+#   1. Copies the named notebook(s) + current labHelpers.py onto the `release`
+#      branch (what nbgitpuller pulls into each student's ~/EdgeNotebook).
+#   2. Flips `published: true` on the matching course-site lab card and pushes the
+#      site, so the Labs page lists only labs that are actually available.
+#
+# The .md docs, this script, and unreleased labs never touch `release`, so students
+# only ever get what you have published.
 #
 #   ./publish.sh lab01                 # accepts lab01, lab01DevTooling, or a filename
-#   ./publish.sh lab01 lab02           # publish several at once
+#   ./publish.sh lab01 lab02           # several at once
 #   ./publish.sh --list                # show what is currently on release
 #
-# Develop and test on `main` (all notebooks + docs); publish to `release` weekly.
-# A dedicated worktree (../EdgeNotebook-release) is used so your main checkout is
-# never disturbed.
+# Develop/test on `main` (Hermes tests main). A dedicated worktree
+# (../EdgeNotebook-release) is used so your main checkout is never disturbed.
+# Course-site checkout defaults to ../UIC_Course_Website; override with
+# COURSE_SITE_DIR. If the site is absent, the card step is skipped.
 # ============================================================================
 set -euo pipefail
 REPO="$(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel)"
 WT="${REPO}-release"
+SITE="${COURSE_SITE_DIR:-$(dirname "$REPO")/UIC_Course_Website}"
 
 git -C "$REPO" fetch -q origin release
 if ! git -C "$REPO" worktree list --porcelain | grep -qx "worktree $WT"; then
@@ -32,20 +38,43 @@ if [ "${1:-}" = "--list" ]; then
 fi
 [ "$#" -ge 1 ] || { echo "usage: $0 <lab> [lab ...]   e.g.  $0 lab01"; exit 1; }
 
-# Always ship the current shared toolkit, then the requested notebook(s).
+# --- 1. put the notebook(s) + current toolkit on the release branch ---
 git -C "$WT" checkout main -- labHelpers.py
+files=()
 for lab in "$@"; do
   f="$(git -C "$REPO" ls-files "${lab}*.ipynb" | head -1)"
   [ -n "$f" ] || { echo "no notebook on main matches '$lab'"; exit 1; }
   git -C "$WT" checkout main -- "$f"
-  echo "  + $f"
+  files+=("$f"); echo "  + $f"
 done
-
 git -C "$WT" add -A
 if git -C "$WT" diff --cached --quiet; then
-  echo "already up to date; nothing to publish"; exit 0
+  echo "release already current for: $*"
+else
+  git -C "$WT" commit -q -m "release: publish $*"
+  git -C "$WT" push -q origin release
+  echo "published to release: $*"
 fi
-git -C "$WT" commit -q -m "release: publish $*"
-git -C "$WT" push -q origin release
-echo "published to release: $*"
-echo "students get it on their next Launch (nbgitpuller fast-forwards their copy)."
+
+# --- 2. reveal the matching site card(s) so the Labs page lists only released labs ---
+if [ -d "$SITE/_labs" ]; then
+  changed=0
+  for f in "${files[@]}"; do
+    card="$(grep -rl "file: \"$f\"" "$SITE/_labs" 2>/dev/null | head -1)"
+    [ -n "$card" ] || { echo "  (no site card references $f)"; continue; }
+    if grep -q '^published:' "$card"; then sed -i 's/^published:.*/published: true/' "$card"
+    else sed -i '/^file:/a published: true' "$card"; fi
+    echo "  revealed card: $(basename "$card")"
+  done
+  if ! git -C "$SITE" diff --quiet -- _labs; then
+    git -C "$SITE" add _labs
+    git -C "$SITE" commit -q -m "Labs: reveal card(s) for $*"
+    echo "  pushing site (builds + deploys via pre-push hook) ..."
+    git -C "$SITE" push 2>&1 | grep -vE 'dependabot|vulnerabilit|^remote:( |$)' | tail -4 || true
+  else
+    echo "  site cards already current."
+  fi
+else
+  echo "  (course site not at $SITE; skipped card reveal -- set COURSE_SITE_DIR)"
+fi
+echo "done. students get it on their next Launch (nbgitpuller fast-forwards)."
