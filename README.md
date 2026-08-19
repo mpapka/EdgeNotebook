@@ -31,6 +31,7 @@ Release one or more labs with a single command:
 ./publish.sh lab01              # accepts lab01, lab01DevTooling, or a full filename
 ./publish.sh lab01 lab02        # several at once
 ./publish.sh --list             # show what students currently have
+./publish.sh --unpublish lab01  # withdraw a lab you released too early
 ```
 
 `publish.sh` does both halves of a rollout: it copies the notebook(s) + current `labHelpers.py`
@@ -44,6 +45,13 @@ Notes:
 - The course-site checkout is assumed at `../UIC_Course_Website`; override with `COURSE_SITE_DIR`.
   If the site is absent, the card step is skipped and only the notebook is released.
 - To fix a released lab, just re-run `./publish.sh <lab>` — it re-syncs that notebook from `main`.
+- To withdraw one, `./publish.sh --unpublish <lab>` removes it from `release` and sets the site
+  card back to `published: false`. It resolves the name against `release` rather than `main`, so
+  you can only withdraw something students actually have, and it refuses to remove `labHelpers.py`.
+  Students keep any copy already pulled — nbgitpuller does not delete their files — so this hides
+  the lab from newcomers rather than recalling it from everyone.
+- Pushing the site does **not** deploy it. The Labs page changes only after the site is rebuilt
+  and rsynced on the box; see `DEPLOY.md` in the course-site repo.
 
 ## Lab order and prerequisites
 
