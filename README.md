@@ -53,6 +53,68 @@ Notes:
 - Pushing the site does **not** deploy it. The Labs page changes only after the site is rebuilt
   and rsynced on the box; see `DEPLOY.md` in the course-site repo.
 
+## Term-start rollout
+
+Two independent halves. Confusing them is the usual mistake:
+
+| | Controlled by | Effect |
+|---|---|---|
+| `release` branch | `publish.sh` / `--unpublish` | what a Launch **actually pulls** |
+| site cards | same script, `published:` flag | what the Labs page **lists** |
+
+A Launch pulls the **whole branch**, not one notebook — `urlpath` only picks which
+file opens. So every notebook on `release` lands in the student's `~/EdgeNotebook`
+no matter which cards are hidden. Hiding a card is cosmetic; removing it from
+`release` is what controls access.
+
+### 1. Open everything up for testing
+
+```
+./publish.sh lab00 lab01 lab02 lab03 lab04 lab05 lab06 lab07 lab08 lab09 \
+             labAA labBB labCC labDD labEE
+```
+
+Then deploy (below). The Labs page lists all 15 and the tester can click through
+them like a student.
+
+Safe only while no one but the tester has an account. Otherwise use a
+`branch=main` launch URL with `targetpath=EdgeNotebook-test`, which tests the
+same path without touching what students pull.
+
+### 2. Withdraw down to the term-start set
+
+```
+./publish.sh --unpublish lab00 lab01 lab02 lab03 lab04 lab05 lab06 lab07 \
+                         lab08 lab09 labEE
+./publish.sh --list        # expect: labAA labBB labCC labDD + labHelpers.py
+```
+
+Deploy again. Term starts with the four background notebooks visible; release
+the numbered labs weekly as the course reaches them.
+
+### 3. Only then create student accounts
+
+The window that matters is a student's **first Launch**, not when their account
+is made. Withdrawal never deletes files already pulled, so anyone who launched
+while everything was open keeps all 15 permanently. Finish step 2 before anyone
+new signs in.
+
+### Deploying
+
+Pushing updates GitHub only. The Labs page changes when the box rebuilds:
+
+```
+ssh papka@cs494.evl.uic.edu
+cd /opt/cs494-site
+git pull
+bundle exec jekyll build
+rsync -a --delete _site/ /var/www/cs494/
+```
+
+Run those at the box prompt rather than as one long `ssh '...'` line, which wraps
+and breaks. `rsync` prints nothing on success.
+
+
 ## Lab order and prerequisites
 
 The numbered notebooks **`lab00Docker` … `lab09Fleet`** are the core course sequence and are
