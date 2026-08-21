@@ -492,7 +492,7 @@ def deviceAddress():
     return "127.0.0.1"
 
 
-def showDashboard(port=None, path="/", label="your service"):
+def showDashboard(port=None, path="/", label="your service", subPath=False):
     """Show a web service you published from a container, two ways:
 
       1. an interactive **browser** link through JupyterHub (jupyter-server-proxy) -
@@ -503,19 +503,38 @@ def showDashboard(port=None, path="/", label="your service"):
 
     Your container publishes its port on the edge device (the host), reached from this
     notebook via deviceAddress(); the browser reaches it via the Hub-proxied URL.
-    `port` defaults to your $PORT."""
+    `port` defaults to your $PORT.
+
+    Set `subPath=True` for a single-page app configured to SERVE FROM the proxy
+    sub-path (Grafana, with GF_SERVER_SERVE_FROM_SUB_PATH). Those need the prefix
+    left ON the request, which is what jupyter-server-proxy's `/proxy/absolute/`
+    form does -- the plain `/proxy/` form strips it, the app sees "/", and it
+    301s to the host in its own root_url, sending your browser off the Hub."""
     port = str(port or os.environ.get("PORT", "")).strip()
     addr = deviceAddress()
-    target = "http://%s:%s%s" % (addr, port, path)
     prefix = os.environ.get("JUPYTERHUB_SERVICE_PREFIX", "/")
-    proxy = "%sproxy/%s:%s%s" % (prefix, addr, port, path)
+    if subPath:
+        proxy = "%sproxy/absolute/%s:%s%s" % (prefix, addr, port, path)
+        # The kernel must ask for that same sub-path, or it gets the same 301.
+        target = "http://%s:%s%s" % (addr, port, proxy)
+    else:
+        proxy = "%sproxy/%s:%s%s" % (prefix, addr, port, path)
+        target = "http://%s:%s%s" % (addr, port, path)
     try:
         import urllib.request
         with urllib.request.urlopen(target, timeout=5) as resp:
             body = resp.read(200000).decode("utf-8", "replace")
         status = '<span style="color:#3fb950">&#9679; serving</span>'
-        snap = ('<div style="border:1px solid #3a3f44;border-radius:6px;padding:8px;'
-                'margin-top:6px;max-height:340px;overflow:auto;background:#fff">%s</div>' % body)
+        if subPath:
+            # A single-page app is all JavaScript: its markup renders nothing inline,
+            # and its <base href> would rewrite relative URLs on the whole Lab page.
+            # Confirm it answered, and send them to the link.
+            snap = ('<div style="color:#8b949e;margin-top:6px">Answered on the Hub sub-path '
+                    '(%d bytes). It is a single-page app, so use the link above rather than '
+                    'an inline snapshot.</div>' % len(body))
+        else:
+            snap = ('<div style="border:1px solid #3a3f44;border-radius:6px;padding:8px;'
+                    'margin-top:6px;max-height:340px;overflow:auto;background:#fff">%s</div>' % body)
     except Exception as fetchError:
         status = '<span style="color:#f85149">&#9679; not reachable</span>'
         snap = ('<div style="color:#f85149;margin-top:6px">Could not reach <code>%s</code> - '
