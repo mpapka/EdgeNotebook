@@ -50,6 +50,8 @@ import pathlib
 import shutil
 import socket
 import subprocess
+import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -492,7 +494,49 @@ def deviceAddress():
     return "127.0.0.1"
 
 
-def showDashboard(port=None, path="/", label="your service"):
+def hubSubPathUrl(port, path="/", addr=None):
+    """The URL of a sub-path-served app exactly as the Hub browser link addresses it.
+
+    jupyter-server-proxy's `/proxy/absolute/<host>:<port>/` form forwards the WHOLE
+    path, prefix included, so an app told to serve from that prefix (Grafana with
+    GF_SERVER_SERVE_FROM_SUB_PATH + a matching root_url) matches it. Building the
+    link and the checkpoint probe from this one place keeps them from drifting.
+    """
+    addr = addr or deviceAddress()
+    prefix = os.environ.get("JUPYTERHUB_SERVICE_PREFIX", "/")
+    return "http://%s:%s%sproxy/absolute/%s:%s%s" % (addr, port, prefix, addr, port, path)
+
+
+def serviceRootUrlPath(addr, port, timeoutSeconds=3):
+    """The sub-path a running service thinks it is served from, or None.
+
+    An app configured to SERVE FROM a sub-path (Grafana with
+    GF_SERVER_SERVE_FROM_SUB_PATH) answers only under the path in its own
+    root_url, and 301s everything else to that root_url -- host included. So a
+    request to `/` comes back as a redirect whose Location spells out the exact
+    path it WILL serve. Comparing that with the link we hand the student turns a
+    useless "connection refused" into "your container was started with a
+    different root_url; recreate it".
+    """
+    class _KeepRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):
+            return None                      # surface the 301 instead of chasing it
+
+    opener = urllib.request.build_opener(_KeepRedirect)
+    try:
+        try:
+            with opener.open("http://%s:%s/" % (addr, port), timeout=timeoutSeconds) as resp:
+                location = resp.headers.get("Location")
+        except urllib.error.HTTPError as redirect:
+            location = redirect.headers.get("Location")
+    except Exception:
+        return None
+    if not location:
+        return None
+    return urllib.parse.urlsplit(location).path or None
+
+
+def showDashboard(port=None, path="/", label="your service", subPath=False):
     """Show a web service you published from a container, two ways:
 
       1. an interactive **browser** link through JupyterHub (jupyter-server-proxy) -
@@ -503,24 +547,61 @@ def showDashboard(port=None, path="/", label="your service"):
 
     Your container publishes its port on the edge device (the host), reached from this
     notebook via deviceAddress(); the browser reaches it via the Hub-proxied URL.
-    `port` defaults to your $PORT."""
+    `port` defaults to your $PORT.
+
+    Set `subPath=True` for a single-page app configured to SERVE FROM the proxy
+    sub-path (Grafana, with GF_SERVER_SERVE_FROM_SUB_PATH). Those need the prefix
+    left ON the request, which is what jupyter-server-proxy's `/proxy/absolute/`
+    form does -- the plain `/proxy/` form strips it, the app sees "/", and it
+    301s to the host in its own root_url, sending your browser off the Hub."""
     port = str(port or os.environ.get("PORT", "")).strip()
     addr = deviceAddress()
-    target = "http://%s:%s%s" % (addr, port, path)
     prefix = os.environ.get("JUPYTERHUB_SERVICE_PREFIX", "/")
-    proxy = "%sproxy/%s:%s%s" % (prefix, addr, port, path)
+    if subPath:
+        proxy = "%sproxy/absolute/%s:%s%s" % (prefix, addr, port, path)
+        # The kernel must ask for that same sub-path, or it gets the same 301.
+        target = hubSubPathUrl(port, path, addr)
+    else:
+        proxy = "%sproxy/%s:%s%s" % (prefix, addr, port, path)
+        target = "http://%s:%s%s" % (addr, port, path)
     try:
         import urllib.request
         with urllib.request.urlopen(target, timeout=5) as resp:
             body = resp.read(200000).decode("utf-8", "replace")
         status = '<span style="color:#3fb950">&#9679; serving</span>'
-        snap = ('<div style="border:1px solid #3a3f44;border-radius:6px;padding:8px;'
-                'margin-top:6px;max-height:340px;overflow:auto;background:#fff">%s</div>' % body)
+        if subPath:
+            # A single-page app is all JavaScript: its markup renders nothing inline,
+            # and its <base href> would rewrite relative URLs on the whole Lab page.
+            # Confirm it answered, and send them to the link.
+            snap = ('<div style="color:#8b949e;margin-top:6px">Answered on the Hub sub-path '
+                    '(%d bytes). It is a single-page app, so use the link above rather than '
+                    'an inline snapshot.</div>' % len(body))
+        else:
+            snap = ('<div style="border:1px solid #3a3f44;border-radius:6px;padding:8px;'
+                    'margin-top:6px;max-height:340px;overflow:auto;background:#fff">%s</div>' % body)
     except Exception as fetchError:
         status = '<span style="color:#f85149">&#9679; not reachable</span>'
-        snap = ('<div style="color:#f85149;margin-top:6px">Could not reach <code>%s</code> - '
-                'is the container running and published on port %s? (%s)</div>'
-                % (target, port, str(fetchError)[:90]))
+        # A sub-path app that is UP but was started with a different root_url looks
+        # exactly like a dead container here: it 301s our request to the host in its
+        # own root_url (localhost:3000), which nothing in this notebook listens on,
+        # so urllib reports "connection refused". Ask the service which path it
+        # actually serves before blaming the container.
+        servedPath = serviceRootUrlPath(addr, port) if subPath else None
+        if servedPath and servedPath.rstrip("/") != proxy.rstrip("/"):
+            status = '<span style="color:#d29922">&#9679; running, wrong root_url</span>'
+            snap = ('<div style="color:#d29922;margin-top:6px">The container IS running on port '
+                    '%s, but it serves <code>%s</code> - not the <code>%s</code> this link uses, '
+                    'so it redirects you off the Hub. It was started before that path was set '
+                    '(or with a different port/address). Re-run the Part 8 <code>compose.yaml</code> '
+                    'cell, then recreate just this service:<br>'
+                    '<code>!docker compose -p $USER-tsdb-lab up -d --force-recreate grafana</code>'
+                    '</div>' % (port, htmlLib.escape(servedPath), htmlLib.escape(proxy)))
+        else:
+            # Escape the error: urllib's text is "<urlopen error ...>", and unescaped
+            # angle brackets are swallowed as a tag, leaving the student an empty "()".
+            snap = ('<div style="color:#f85149;margin-top:6px">Could not reach <code>%s</code> - '
+                    'is the container running and published on port %s? (%s)</div>'
+                    % (htmlLib.escape(target), port, htmlLib.escape(str(fetchError)[:90])))
     try:
         from IPython.display import HTML, display
         display(HTML(
