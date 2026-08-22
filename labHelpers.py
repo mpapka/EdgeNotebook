@@ -763,7 +763,11 @@ def runProbe(probe):
     return bool(result), ""
 
 
-checkpointResults = {}   # title -> {"passed": int, "total": int}
+# title -> {"passed": int, "total": int, "kind": "checkpoint"|"preflight"}.
+# The preflight lands here too: it is the one gate a lab cannot pass without, so a
+# summary that counted only checkpoints could tell a student "every checkpoint
+# passed" while their environment check was still red.
+checkpointResults = {}
 
 
 def renderCheckTable(title, checks, infoRows=None):
@@ -791,6 +795,8 @@ def preflight(checks, infoRows=None, title="preflight - environment"):
     with check(...). infoRows is a list of (label, value) informational rows
     (e.g. your USER and PORT)."""
     failures = renderCheckTable(title, checks, infoRows=infoRows)
+    checkpointResults[title] = {"passed": len(checks) - len(failures),
+                                "total": len(checks), "kind": "preflight"}
     if failures:
         for failed in failures:
             showNote(failed.get("hint") or "This must be fixed before continuing.",
@@ -811,7 +817,8 @@ def checkpoint(title, checks, successNote=None, docLink=None, docLinkText=None):
     """
     failures = renderCheckTable(f"checkpoint - {title}", checks)
     passedCount = len(checks) - len(failures)
-    checkpointResults[title] = {"passed": passedCount, "total": len(checks)}
+    checkpointResults[title] = {"passed": passedCount, "total": len(checks),
+                                "kind": "checkpoint"}
     if failures:
         for failed in failures:
             showNote(failed.get("hint") or "Re-run the cells above for this part.",
@@ -836,20 +843,34 @@ def labSummary(labTitle="Lab progress"):
     table.add_column("checkpoint", style="cyan", overflow="fold")
     table.add_column("score")
     table.add_column("status")
-    allPassed = True
+    preflightFailed = False
+    checkpointFailed = False
     for title, result in checkpointResults.items():
         passed, total = result["passed"], result["total"]
         ok = passed == total
-        allPassed = allPassed and ok
-        table.add_row(title, f"{passed}/{total}",
-                      "[green]✓ complete[/]" if ok else "[yellow]⚠ incomplete[/]")
+        isPreflight = result.get("kind") == "preflight"
+        if not ok:
+            if isPreflight:
+                preflightFailed = True
+            else:
+                checkpointFailed = True
+        status = ("[green]✓ complete[/]" if ok else
+                  "[red]✗ environment[/]" if isPreflight else "[yellow]⚠ incomplete[/]")
+        table.add_row(title, f"{passed}/{total}", status)
     richConsole.print(table)
-    if allPassed:
-        showNote("Every checkpoint passed. Nice work - you are done with this lab.",
-                 kind="ok")
-    else:
+    if preflightFailed:
+        showNote("The environment preflight is still failing, so this lab is NOT complete "
+                 "even if every checkpoint below it is green - those parts ran against a "
+                 "broken environment. Fix the preflight items, re-run the preflight cell, "
+                 "then re-run any checkpoint that depends on them."
+                 + (" Some checkpoints are incomplete too." if checkpointFailed else ""),
+                 kind="warn")
+    elif checkpointFailed:
         showNote("Some checkpoints are incomplete. Scroll up, fix the failing parts, "
                  "and re-run their checkpoint cells.", kind="warn")
+    else:
+        showNote("Every check passed, preflight included. Nice work - you are done with "
+                 "this lab.", kind="ok")
 
 
 # --------------------------------------------------------------------------
