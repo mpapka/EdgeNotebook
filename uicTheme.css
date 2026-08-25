@@ -1,0 +1,729 @@
+/* ==========================================================================
+   uicTheme.css - UIC Computer Science notebook theme
+   --------------------------------------------------------------------------
+   A course-AGNOSTIC skin for JupyterLab teaching notebooks. Nothing in this
+   file names a course, a term, or an instructor: course identity is content
+   (see uicCourse.json + the .uic-course-header block a notebook carries), so
+   CS 494, CS 455 and any future class share this one stylesheet unchanged.
+
+   It is loaded two ways, and the two are the same bytes:
+
+     1. Environment  - baked into the class notebook image as JupyterLab's
+                       custom CSS (/usr/local/etc/jupyter/custom/custom.css,
+                       with LabApp.custom_css = True). Active before a student
+                       runs anything, and skins the JupyterLab chrome too.
+     2. Portable     - injected by labHelpers.applyNotebookTheme(), which runs
+                       on `from labHelpers import *`. Covers notebooks opened
+                       anywhere else (an instructor laptop, a plain JupyterLab).
+
+   Design intent: white working canvas, navy structure, UIC red used only for
+   emphasis and active state. It must still read as a technical computing
+   environment - not a marketing page. Syntax highlighting, execution prompts,
+   error output and terminal colors are deliberately left alone.
+   ========================================================================== */
+
+
+/* --------------------------------------------------------------------------
+   1. Design tokens
+   -------------------------------------------------------------------------- */
+:root {
+  --uic-red: #D50032;
+  --uic-red-dark: #A80028;         /* red that still passes contrast on white  */
+  --uic-navy: #001E62;
+  --uic-navy-soft: #1B3A7A;
+  --uic-blue: #00B5E2;
+  --uic-blue-ink: #0A6E8A;         /* readable text weight of the light blue   */
+
+  --uic-text: #1F2933;
+  --uic-muted-text: #5B6573;
+
+  --uic-bg: #FFFFFF;
+  --uic-bg-subtle: #F6F7F9;
+  --uic-bg-muted: #EEF1F4;
+  --uic-bg-navy-tint: #F4F7FB;
+  --uic-bg-blue-tint: #F2FAFD;
+  --uic-bg-warm-tint: #FFF8EF;
+  --uic-bg-red-tint: #FDF3F5;
+
+  --uic-border: #D9DEE5;
+  --uic-border-strong: #B8C0CC;
+
+  --uic-success: #2E7D32;
+  --uic-warning: #A15C00;
+  --uic-error: #B3261E;
+
+  --uic-radius-sm: 4px;
+  --uic-radius-md: 8px;
+  --uic-radius-lg: 12px;
+
+  --uic-shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.08);
+
+  --uic-font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --uic-font-code: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+
+  /* Accent bar width shared by callouts and blockquotes. */
+  --uic-accent-width: 5px;
+}
+
+/* Dark theme. Students who switch JupyterLab to Dark should not get white
+   callout slabs. Same hues, dark surfaces; brand colors lightened enough to
+   stay legible on a dark ground. Only the tokens change - no rule below is
+   duplicated. */
+body[data-jp-theme-light="false"] {
+  --uic-red: #FF5C7A;
+  --uic-red-dark: #FF7D93;
+  --uic-navy: #A9C2FF;
+  --uic-navy-soft: #8FADF5;
+  --uic-blue-ink: #6FD3EE;
+
+  --uic-text: #E6E9EF;
+  --uic-muted-text: #A3ACBA;
+
+  --uic-bg: #111418;
+  --uic-bg-subtle: #1A1E24;
+  --uic-bg-muted: #21262E;
+  --uic-bg-navy-tint: #161C2A;
+  --uic-bg-blue-tint: #12222A;
+  --uic-bg-warm-tint: #241D12;
+  --uic-bg-red-tint: #261319;
+
+  --uic-border: #333A44;
+  --uic-border-strong: #4A535F;
+
+  --uic-success: #6FCF7A;
+  --uic-warning: #E0A458;
+  --uic-error: #FF6B60;
+}
+
+
+/* --------------------------------------------------------------------------
+   2. Typography - wired through JupyterLab's own variables
+   --------------------------------------------------------------------------
+   Setting the --jp-* variables reaches markdown, HTML output and the UI in one
+   move, instead of chasing selectors. Sizes are left at Jupyter's defaults on
+   purpose (no tiny text, no oversized text); only the families, line height
+   and link color change.
+   -------------------------------------------------------------------------- */
+:root {
+  --jp-ui-font-family: var(--uic-font-ui);
+  --jp-content-font-family: var(--uic-font-ui);
+  --jp-code-font-family: var(--uic-font-code);
+  --jp-content-line-height: 1.65;
+  --jp-content-link-color: var(--uic-navy);
+
+  /* Brand = navy. JupyterLab paints primary buttons, toggles and several
+     active affordances from these. Navy keeps them structural; red is spent
+     only where this file asks for it explicitly. */
+  --jp-brand-color0: #00113A;
+  --jp-brand-color1: var(--uic-navy);
+  --jp-brand-color2: var(--uic-navy-soft);
+  --jp-brand-color3: #7A93C9;
+
+  /* Code cell input surface. */
+  --jp-cell-editor-background: #FBFCFD;
+  --jp-cell-editor-border-color: var(--uic-border);
+  --jp-cell-editor-active-background: var(--uic-bg);
+  --jp-cell-editor-active-border-color: var(--uic-border-strong);
+}
+
+body[data-jp-theme-light="false"] {
+  --jp-cell-editor-background: #14181D;
+  --jp-cell-editor-active-background: #171C22;
+}
+
+.jp-RenderedHTMLCommon {
+  color: var(--uic-text);
+}
+
+
+/* --------------------------------------------------------------------------
+   3. Heading hierarchy
+   --------------------------------------------------------------------------
+   H1 = notebook title, H2 = major section ("Part 3 - ..."), H3 = exercise or
+   subsection. The point is that a student scrolling fast can tell the three
+   apart at a glance without any heading being large enough to eat the screen.
+   -------------------------------------------------------------------------- */
+.jp-RenderedHTMLCommon h1,
+.jp-RenderedHTMLCommon h2,
+.jp-RenderedHTMLCommon h3,
+.jp-RenderedHTMLCommon h4,
+.jp-RenderedHTMLCommon h5,
+.jp-RenderedHTMLCommon h6 {
+  font-family: var(--uic-font-ui);
+  color: var(--uic-navy);
+  line-height: 1.25;
+}
+
+.jp-RenderedHTMLCommon h1 {
+  font-size: 1.85em;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-top: 1.5rem;
+  margin-bottom: 0.9rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 3px solid var(--uic-red);
+}
+
+.jp-RenderedHTMLCommon h2 {
+  font-size: 1.35em;
+  font-weight: 650;
+  margin-top: 2rem;
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.2rem;
+  border-bottom: 1px solid var(--uic-border);
+}
+
+/* H3 carries a short red tick rather than a full rule: enough to mark an
+   exercise or task without adding another horizontal line to the page. */
+.jp-RenderedHTMLCommon h3 {
+  font-size: 1.12em;
+  font-weight: 650;
+  margin-top: 1.5rem;
+  margin-bottom: 0.45rem;
+  padding-left: 0.6rem;
+  border-left: 3px solid var(--uic-red);
+}
+
+.jp-RenderedHTMLCommon h4 {
+  font-size: 1em;
+  font-weight: 650;
+  color: var(--uic-text);
+  margin-top: 1.2rem;
+  margin-bottom: 0.35rem;
+}
+
+/* A markdown cell that opens with `---` (these labs start most Parts that way)
+   renders <hr> immediately before the heading. Collapse the doubled spacing. */
+.jp-RenderedHTMLCommon hr {
+  border: 0;
+  border-top: 1px solid var(--uic-border);
+  margin: 1.75rem 0 0;
+}
+
+.jp-RenderedHTMLCommon hr + h1,
+.jp-RenderedHTMLCommon hr + h2,
+.jp-RenderedHTMLCommon hr + h3 {
+  margin-top: 1rem;
+}
+
+
+/* --------------------------------------------------------------------------
+   4. Prose: paragraphs, lists, quotes
+   -------------------------------------------------------------------------- */
+.jp-RenderedHTMLCommon p {
+  margin: 0.6rem 0;
+}
+
+/* Compact indentation, clear nesting, no wasted vertical space - instructional
+   notebooks are mostly lists. */
+.jp-RenderedHTMLCommon ul,
+.jp-RenderedHTMLCommon ol {
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+
+.jp-RenderedHTMLCommon li {
+  margin: 0.22rem 0;
+}
+
+.jp-RenderedHTMLCommon li > ul,
+.jp-RenderedHTMLCommon li > ol {
+  margin: 0.22rem 0;
+}
+
+.jp-RenderedHTMLCommon blockquote {
+  margin: 1rem 0;
+  padding: 0.5rem 0 0.5rem 1rem;
+  border-left: var(--uic-accent-width) solid var(--uic-border-strong);
+  background: transparent;
+  color: var(--uic-muted-text);
+  font-style: normal;
+}
+
+.jp-RenderedHTMLCommon strong,
+.jp-RenderedHTMLCommon b {
+  color: inherit;
+  font-weight: 650;
+}
+
+
+/* --------------------------------------------------------------------------
+   5. Links
+   --------------------------------------------------------------------------
+   Underlined, so color is never the only signal (accessibility).
+   -------------------------------------------------------------------------- */
+.jp-RenderedHTMLCommon a,
+.jp-RenderedHTMLCommon a:visited {
+  color: var(--uic-navy);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.jp-RenderedHTMLCommon a:hover,
+.jp-RenderedHTMLCommon a:focus-visible {
+  color: var(--uic-red-dark);
+  text-decoration-thickness: 2px;
+}
+
+
+/* --------------------------------------------------------------------------
+   6. Code in prose
+   --------------------------------------------------------------------------
+   Distinct from body text, but never louder than it. Syntax colors inside
+   code CELLS are untouched - this is only markdown's `inline` and ``` blocks.
+   -------------------------------------------------------------------------- */
+.jp-RenderedHTMLCommon :not(pre) > code {
+  font-family: var(--uic-font-code);
+  font-size: 0.88em;
+  background: var(--uic-bg-muted);
+  border: 1px solid var(--uic-border);
+  border-radius: var(--uic-radius-sm);
+  padding: 0.08em 0.34em;
+  color: var(--uic-text);
+}
+
+.jp-RenderedHTMLCommon pre {
+  font-family: var(--uic-font-code);
+  font-size: 0.86em;
+  line-height: 1.55;
+  background: var(--uic-bg-subtle);
+  border: 1px solid var(--uic-border);
+  border-left: 3px solid var(--uic-border-strong);
+  border-radius: var(--uic-radius-sm);
+  padding: 0.7rem 0.85rem;
+  margin: 0.8rem 0;
+  overflow-x: auto;        /* code may scroll sideways; the page must not */
+}
+
+.jp-RenderedHTMLCommon pre > code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: inherit;
+}
+
+
+/* --------------------------------------------------------------------------
+   7. Tables
+   -------------------------------------------------------------------------- */
+.jp-RenderedHTMLCommon table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.94em;
+}
+
+.jp-RenderedHTMLCommon thead th,
+.jp-RenderedHTMLCommon th {
+  background: var(--uic-navy);
+  color: #FFFFFF;
+  font-weight: 600;
+  text-align: left;
+  padding: 0.55rem 0.7rem;
+  border: 0;
+}
+
+body[data-jp-theme-light="false"] .jp-RenderedHTMLCommon thead th,
+body[data-jp-theme-light="false"] .jp-RenderedHTMLCommon th {
+  background: #16305F;
+  color: #EDF1FA;
+}
+
+.jp-RenderedHTMLCommon td {
+  padding: 0.55rem 0.7rem;
+  border: 0;
+  border-bottom: 1px solid var(--uic-border);
+}
+
+.jp-RenderedHTMLCommon tbody tr:nth-child(even) {
+  background: var(--uic-bg-subtle);
+}
+
+/* A wide table scrolls inside itself rather than pushing the notebook sideways. */
+.jp-RenderedHTMLCommon table {
+  display: table;
+}
+
+.jp-RenderedHTMLCommon img {
+  max-width: 100%;
+  height: auto;
+  margin: 0.9rem 0;
+  border-radius: var(--uic-radius-sm);
+}
+
+
+/* --------------------------------------------------------------------------
+   8. Course header
+   --------------------------------------------------------------------------
+   The one place a notebook states which course it belongs to. Compact by
+   design: a red top rule, the course code in red, everything else quiet. No
+   logo, no banner image. Markup lives in the notebook (or comes from
+   labHelpers.courseHeader()); the values are configuration, not CSS.
+   -------------------------------------------------------------------------- */
+.jp-RenderedHTMLCommon .uic-course-header {
+  border: 1px solid var(--uic-border);
+  border-top: 3px solid var(--uic-red);
+  border-radius: var(--uic-radius-md);
+  background: var(--uic-bg-subtle);
+  padding: 0.7rem 0.95rem;
+  margin: 0 0 1rem;
+  display: flex;
+  flex-wrap: wrap;             /* narrow windows stack instead of scrolling */
+  align-items: baseline;
+  gap: 0.35rem 0.9rem;
+  font-family: var(--uic-font-ui);
+  line-height: 1.4;
+}
+
+.jp-RenderedHTMLCommon .uic-course-code {
+  color: var(--uic-red-dark);
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+}
+
+.jp-RenderedHTMLCommon .uic-course-title {
+  color: var(--uic-navy);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+/* Pushes the remaining items to the right edge on a wide window, and simply
+   wraps under on a narrow one. */
+.jp-RenderedHTMLCommon .uic-course-meta {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
+}
+
+.jp-RenderedHTMLCommon .uic-notebook-label {
+  display: inline-block;
+  background: var(--uic-navy);
+  color: #FFFFFF;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  padding: 0.16rem 0.5rem;
+  border-radius: var(--uic-radius-sm);
+}
+
+body[data-jp-theme-light="false"] .jp-RenderedHTMLCommon .uic-notebook-label {
+  background: #16305F;
+  color: #EDF1FA;
+}
+
+.jp-RenderedHTMLCommon .uic-course-term,
+.jp-RenderedHTMLCommon .uic-course-unit {
+  color: var(--uic-muted-text);
+  font-size: 0.82rem;
+}
+
+/* The notebook's own H1 sits directly under the header; it does not need the
+   extra top margin it would get at the top of a document. */
+.jp-RenderedHTMLCommon .uic-course-header + h1 {
+  margin-top: 0.25rem;
+}
+
+
+/* --------------------------------------------------------------------------
+   9. Instructional callouts
+   --------------------------------------------------------------------------
+   One shared shape; the left rule and tint say which kind. Every kind also
+   carries a text label in the notebook content, so the meaning never rests on
+   color alone.
+   -------------------------------------------------------------------------- */
+.jp-RenderedHTMLCommon .uic-objectives,
+.jp-RenderedHTMLCommon .uic-exercise,
+.jp-RenderedHTMLCommon .uic-note,
+.jp-RenderedHTMLCommon .uic-tip,
+.jp-RenderedHTMLCommon .uic-warning,
+.jp-RenderedHTMLCommon .uic-deliverable,
+.jp-RenderedHTMLCommon .uic-checkpoint {
+  margin: 1rem 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--uic-border);
+  border-radius: var(--uic-radius-md);
+  font-family: var(--uic-font-ui);
+  line-height: 1.6;
+}
+
+/* First/last child margin collapse: a callout whose content starts with a
+   heading or ends with a list should not carry doubled padding. */
+.jp-RenderedHTMLCommon [class^="uic-"] > :first-child { margin-top: 0; }
+.jp-RenderedHTMLCommon [class^="uic-"] > :last-child { margin-bottom: 0; }
+
+.jp-RenderedHTMLCommon .uic-objectives {
+  border-left: var(--uic-accent-width) solid var(--uic-navy);
+  background: var(--uic-bg-navy-tint);
+}
+
+.jp-RenderedHTMLCommon .uic-exercise {
+  border-left: var(--uic-accent-width) solid var(--uic-red);
+  background: var(--uic-bg-subtle);
+}
+
+.jp-RenderedHTMLCommon .uic-note,
+.jp-RenderedHTMLCommon .uic-tip {
+  border-left: var(--uic-accent-width) solid var(--uic-blue);
+  background: var(--uic-bg-blue-tint);
+}
+
+/* Warm amber, NOT UIC red: red is the brand emphasis color here, so spending
+   it on every warning would drain it of meaning. */
+.jp-RenderedHTMLCommon .uic-warning {
+  border-left: var(--uic-accent-width) solid var(--uic-warning);
+  background: var(--uic-bg-warm-tint);
+}
+
+.jp-RenderedHTMLCommon .uic-deliverable {
+  border-left: var(--uic-accent-width) solid var(--uic-navy);
+  background: var(--uic-bg-muted);
+}
+
+.jp-RenderedHTMLCommon .uic-checkpoint {
+  border-left: var(--uic-accent-width) solid var(--uic-success);
+  background: var(--uic-bg-subtle);
+}
+
+/* The label line inside a callout: <strong> as the first element, or an
+   explicit .uic-label. */
+.jp-RenderedHTMLCommon .uic-objectives > strong:first-child,
+.jp-RenderedHTMLCommon .uic-exercise > strong:first-child,
+.jp-RenderedHTMLCommon .uic-note > strong:first-child,
+.jp-RenderedHTMLCommon .uic-tip > strong:first-child,
+.jp-RenderedHTMLCommon .uic-warning > strong:first-child,
+.jp-RenderedHTMLCommon .uic-deliverable > strong:first-child,
+.jp-RenderedHTMLCommon .uic-checkpoint > strong:first-child,
+.jp-RenderedHTMLCommon .uic-label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.jp-RenderedHTMLCommon .uic-objectives > strong:first-child,
+.jp-RenderedHTMLCommon .uic-deliverable > strong:first-child { color: var(--uic-navy); }
+.jp-RenderedHTMLCommon .uic-exercise > strong:first-child { color: var(--uic-red-dark); }
+.jp-RenderedHTMLCommon .uic-note > strong:first-child,
+.jp-RenderedHTMLCommon .uic-tip > strong:first-child { color: var(--uic-blue-ink); }
+.jp-RenderedHTMLCommon .uic-warning > strong:first-child { color: var(--uic-warning); }
+.jp-RenderedHTMLCommon .uic-checkpoint > strong:first-child { color: var(--uic-success); }
+
+/* "Due", "required", "must" language inside a deliverable. */
+.jp-RenderedHTMLCommon .uic-required {
+  color: var(--uic-red-dark);
+  font-weight: 650;
+}
+
+
+/* --------------------------------------------------------------------------
+   10. Code cells
+   --------------------------------------------------------------------------
+   Kept familiar. The collapser bar on the left of the active cell is already
+   the affordance every Jupyter user reads as "you are here" - it just becomes
+   UIC red instead of Jupyter blue. No new icons, no per-cell shadows.
+   -------------------------------------------------------------------------- */
+.jp-Cell {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.jp-InputArea-editor {
+  border-radius: var(--uic-radius-sm);
+}
+
+.jp-Notebook .jp-Cell.jp-mod-active .jp-Collapser {
+  background: var(--uic-red);
+}
+
+.jp-Notebook .jp-Cell .jp-Collapser:hover {
+  background: var(--uic-red-dark);
+}
+
+/* Selected-but-not-active cells in a multi-cell selection. */
+.jp-Notebook .jp-Cell.jp-mod-selected .jp-Collapser {
+  background: var(--uic-border-strong);
+}
+
+/* Execution prompts stay legible and quiet - never hidden (§17). */
+.jp-InputPrompt,
+.jp-OutputPrompt {
+  color: var(--uic-muted-text);
+  font-family: var(--uic-font-code);
+  opacity: 1;
+}
+
+.jp-Cell.jp-mod-active .jp-InputPrompt {
+  color: var(--uic-navy);
+}
+
+/* Markdown cells get a touch more breathing room than code cells. */
+.jp-MarkdownCell .jp-InputArea-editor {
+  border-left: 3px solid var(--uic-border-strong);
+}
+
+
+/* --------------------------------------------------------------------------
+   11. Output areas
+   --------------------------------------------------------------------------
+   Distinct from input by a quiet inset rule, not by a heavy box.
+   -------------------------------------------------------------------------- */
+.jp-Cell-outputWrapper .jp-OutputArea-child {
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+.jp-OutputArea-output {
+  background: transparent;
+}
+
+.jp-OutputArea-output pre {
+  font-family: var(--uic-font-code);
+  line-height: 1.5;
+}
+
+/* stderr and tracebacks keep Jupyter's own alarm colors - the theme must not
+   make a failure quieter than Jupyter intended (§15). */
+.jp-OutputArea-output[data-mime-type="application/vnd.jupyter.stderr"] {
+  border-left: 3px solid var(--uic-error);
+  border-radius: var(--uic-radius-sm);
+}
+
+.jp-OutputArea-promptOverlay:hover {
+  background: var(--uic-bg-muted);
+}
+
+
+/* --------------------------------------------------------------------------
+   12. Focus and keyboard accessibility
+   -------------------------------------------------------------------------- */
+.jp-RenderedHTMLCommon a:focus-visible,
+.jp-Notebook button:focus-visible,
+.jp-Toolbar button:focus-visible,
+.jp-DirListing-item:focus-visible {
+  outline: 2px solid var(--uic-red);
+  outline-offset: 2px;
+  border-radius: var(--uic-radius-sm);
+}
+
+
+/* --------------------------------------------------------------------------
+   13. Responsive / projection
+   --------------------------------------------------------------------------
+   Narrow windows and classroom projectors. Nothing here sets a fixed content
+   width, so normal markdown never scrolls horizontally.
+   -------------------------------------------------------------------------- */
+@media (max-width: 820px) {
+  .jp-RenderedHTMLCommon .uic-course-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .jp-RenderedHTMLCommon .uic-course-meta {
+    margin-left: 0;
+  }
+  .jp-RenderedHTMLCommon h1 { font-size: 1.6em; }
+  .jp-RenderedHTMLCommon h2 { font-size: 1.25em; }
+}
+
+@media print {
+  .jp-RenderedHTMLCommon .uic-course-header,
+  .jp-RenderedHTMLCommon [class^="uic-"] {
+    break-inside: avoid;
+  }
+}
+
+
+/* ==========================================================================
+   14. JupyterLab chrome  (OPTIONAL SECTION)
+   --------------------------------------------------------------------------
+   Everything below skins the application shell rather than the notebook
+   document. Delete from here to the end of the file for a content-only theme.
+
+   Restraint is the rule: navy on the sidebar icon strip, a red indicator on
+   the current tab and active states, and nothing at all on the terminal or on
+   syntax highlighting.
+   ========================================================================== */
+
+/* --- Left/right sidebar icon strips ------------------------------------- */
+.jp-SideBar.lm-TabBar {
+  background: var(--uic-navy);
+}
+
+body[data-jp-theme-light="false"] .jp-SideBar.lm-TabBar {
+  background: #0B1220;
+}
+
+.jp-SideBar.lm-TabBar .lm-TabBar-tab {
+  background: transparent;
+  border: 0;
+}
+
+.jp-SideBar.lm-TabBar .lm-TabBar-tabIcon svg [fill],
+.jp-SideBar.lm-TabBar .lm-TabBar-tabIcon svg {
+  fill: #C9D4EA;              /* high contrast on navy */
+}
+
+.jp-SideBar.lm-TabBar .lm-TabBar-tab:hover .lm-TabBar-tabIcon svg [fill] {
+  fill: #FFFFFF;
+}
+
+/* Active sidebar tab: a red bar on the inner edge + a full-strength icon. */
+.jp-SideBar.lm-TabBar .lm-TabBar-tab.lm-mod-current {
+  background: rgba(255, 255, 255, 0.10);
+  box-shadow: inset -3px 0 0 0 var(--uic-red);
+}
+
+.jp-SideBar.jp-mod-right.lm-TabBar .lm-TabBar-tab.lm-mod-current {
+  box-shadow: inset 3px 0 0 0 var(--uic-red);
+}
+
+.jp-SideBar.lm-TabBar .lm-TabBar-tab.lm-mod-current .lm-TabBar-tabIcon svg [fill] {
+  fill: #FFFFFF;
+}
+
+/* --- Main dock tabs ------------------------------------------------------ */
+#jp-main-dock-panel .lm-DockPanel-tabBar .lm-TabBar-tab {
+  border-top: 2px solid transparent;
+}
+
+#jp-main-dock-panel .lm-DockPanel-tabBar .lm-TabBar-tab.lm-mod-current {
+  border-top-color: var(--uic-red);
+  font-weight: 600;
+}
+
+/* --- Menu bar and toolbar: light, standard, navy only for primary actions - */
+#jp-MainLogo {
+  /* Keep whatever logo the deployment ships; just give it room. */
+  padding: 0 6px;
+}
+
+.jp-Toolbar {
+  background: var(--uic-bg);
+  border-bottom: 1px solid var(--uic-border);
+}
+
+.jp-ToolbarButtonComponent:hover {
+  background: var(--uic-bg-muted);
+}
+
+/* --- File browser: red selection, navy active item ---------------------- */
+.jp-DirListing-item.jp-mod-selected {
+  background: var(--uic-navy);
+  color: #FFFFFF;
+}
+
+.jp-DirListing-content .jp-DirListing-item.jp-mod-running .jp-DirListing-itemIcon::before {
+  color: var(--uic-success);
+}
+
+/* --- Terminal: explicitly untouched ------------------------------------- *
+   No rules target .jp-Terminal / .xterm on purpose. ANSI colors and terminal
+   legibility are left exactly as shipped.
+ * ------------------------------------------------------------------------ */
