@@ -78,12 +78,33 @@ else
   done
 fi
 
-if git -C "$WT" diff --cached --quiet; then
-  echo "release already current for: $*"
-else
+# Report the RELEASE BRANCH'S ACTUAL STATE, not which branch of this `if` ran. A
+# run that committed and pushed dcfa3f0 nonetheless printed "already current" --
+# so a message derived from the code path cannot be trusted to describe what the
+# students will get. Comparing the commit before and after, and then against the
+# remote, is checkable: whatever the path did, these SHAs are real.
+before="$(git -C "$WT" rev-parse HEAD)"
+if ! git -C "$WT" diff --cached --quiet; then
   git -C "$WT" commit -q -m "release: $MODE $*"
   git -C "$WT" push -q origin release
-  echo "${MODE}ed on release: $*"
+fi
+after="$(git -C "$WT" rev-parse HEAD)"
+
+git -C "$REPO" fetch -q origin release
+remote="$(git -C "$REPO" rev-parse origin/release)"
+
+# Check the failure FIRST. Reporting "published" and then warning that the push
+# never landed is worse than not reporting at all: the eye takes the first line.
+if [ "$after" != "$remote" ]; then
+  echo "PUSH DID NOT LAND: local release $(git -C "$WT" rev-parse --short HEAD)" \
+       "!= origin/release $(git -C "$REPO" rev-parse --short origin/release)"
+  echo "  Students will NOT get this. Retry:  git -C $WT push origin release"
+  exit 1
+fi
+if [ "$before" = "$after" ]; then
+  echo "release already current for: $*   (release stays at $(git -C "$REPO" rev-parse --short origin/release))"
+else
+  echo "${MODE}ed on release: $*   (release now $(git -C "$REPO" rev-parse --short origin/release))"
 fi
 
 # --- 2. reveal or hide the matching site card(s) so the Labs page tracks release ---
