@@ -3,7 +3,7 @@
 # publish.sh — release lab notebook(s) to students, in one step.
 #
 # Does BOTH halves of a weekly rollout:
-#   1. Copies the named notebook(s) + current labHelpers.py onto the `release`
+#   1. Copies the named notebook(s) + the shared toolkit onto the `release`
 #      branch (what nbgitpuller pulls into each student's ~/EdgeNotebook).
 #   2. Flips `published: true` on the matching course-site lab card and pushes the
 #      site, so the Labs page lists only labs that are actually available.
@@ -32,6 +32,13 @@ REPO="$(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel)"
 WT="${REPO}-release"
 SITE="${COURSE_SITE_DIR:-$(dirname "$REPO")/UIC_Course_Website}"
 
+# What every student needs no matter which labs are published. This is the whole
+# toolkit, not just the module: labHelpers finds uicTheme.css by looking NEXT TO
+# itself, so shipping the module alone leaves applyNotebookTheme() with nothing to
+# load -- and it fails SILENTLY by design, so the labs would simply arrive unskinned
+# with nothing in any log to say why. These three travel together.
+toolkit=(labHelpers.py uicTheme.css uicCourse.json)
+
 git -C "$REPO" fetch -q origin release
 if ! git -C "$REPO" worktree list --porcelain | grep -qx "worktree $WT"; then
   git -C "$REPO" worktree add -q "$WT" release 2>/dev/null \
@@ -52,20 +59,20 @@ if [ "${1:-}" = "--unpublish" ]; then MODE=unpublish; shift; fi
 # --- 1. add to, or remove from, the release branch ---
 files=()
 if [ "$MODE" = publish ]; then
-  git -C "$WT" checkout main -- labHelpers.py
+  git -C "$WT" checkout main -- "${toolkit[@]}"
   for lab in "$@"; do
     f="$(git -C "$REPO" ls-files "${lab}*.ipynb" | head -1)"
     [ -n "$f" ] || { echo "no notebook on main matches '$lab'"; exit 1; }
     git -C "$WT" checkout main -- "$f"
     files+=("$f"); echo "  + $f"
   done
-  git -C "$WT" add -- labHelpers.py "${files[@]}"   # explicit: never sweep in stray files
+  git -C "$WT" add -- "${toolkit[@]}" "${files[@]}"   # explicit: never sweep in stray files
 else
   # Resolve against release, not main: only what students actually have can be withdrawn.
   for lab in "$@"; do
     f="$(git -C "$WT" ls-files "${lab}*.ipynb" | head -1)"
     [ -n "$f" ] || { echo "not on release, nothing to withdraw: '$lab'"; exit 1; }
-    case "$f" in labHelpers.py) echo "refusing to remove the shared toolkit"; exit 1;; esac
+    case " ${toolkit[*]} " in *" $f "*) echo "refusing to remove the shared toolkit"; exit 1;; esac
     git -C "$WT" rm -q -- "$f"
     files+=("$f"); echo "  - $f"
   done
