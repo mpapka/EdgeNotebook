@@ -19,6 +19,9 @@ It provides four things:
                      and gives targeted feedback: what passed, what failed,
                      how to fix it, and where to read more. labSummary()
                      shows everything you have passed so far.
+5. Look and feel   - the UIC Computer Science notebook theme (uicTheme.css,
+                     course identity in uicCourse.json) is applied on import.
+                     See applyNotebookTheme() / courseConfig() / courseHeader().
 
 The module is self-healing: it installs its own display dependencies (rich,
 pygments) on first import if they are missing.
@@ -68,6 +71,152 @@ richConsole = Console(force_jupyter=True)   # emit HTML inside Jupyter, always
 
 fontStack = ("'Fira Code','JetBrains Mono',SFMono-Regular,Menlo,"
              "Consolas,'Liberation Mono',monospace")
+
+
+# --------------------------------------------------------------------------
+# UIC CS notebook theme
+# --------------------------------------------------------------------------
+# The visual skin for these notebooks lives in ONE file, uicTheme.css, next to
+# this module. It is course-agnostic on purpose (see uicCourse.json for the
+# course identity), and it reaches a notebook by two routes:
+#
+#   * On the class JupyterHub the same file is baked into the notebook image as
+#     JupyterLab's custom CSS, so it is already active before a student runs a
+#     single cell - including the JupyterLab chrome.
+#   * Everywhere else (an instructor's laptop, a plain JupyterLab, a student who
+#     opened the notebook outside the Hub), applyNotebookTheme() below injects
+#     it when `from labHelpers import *` runs. Same bytes, no second copy.
+#
+# Injecting twice is harmless - identical rules - so no coordination is needed
+# between the two routes.
+
+themeFileName = "uicTheme.css"
+courseFileName = "uicCourse.json"
+
+# Where a notebook may live relative to these files. Same search order as the
+# labHelpers lookup the notebooks already do, so if the module was importable
+# its stylesheet is findable too.
+def _resourceSearchDirs():
+    here = pathlib.Path(__file__).resolve().parent
+    return [here, pathlib.Path.cwd(), *list(pathlib.Path.cwd().parents)[:3],
+            pathlib.Path.home() / "EdgeNotebook"]
+
+
+def _findResource(fileName):
+    """First existing copy of fileName in the search path, or None."""
+    for directory in _resourceSearchDirs():
+        candidate = directory / fileName
+        if candidate.exists():
+            return candidate
+    return None
+
+
+courseDefaults = {
+    "courseCode": "",
+    "courseTitle": "",
+    "semester": "",
+    "institution": "University of Illinois Chicago",
+    "unit": "Computer Science",
+}
+
+# Per-session overrides, so one box can serve two courses without editing files.
+courseEnvVars = {
+    "courseCode": "UIC_COURSE_CODE",
+    "courseTitle": "UIC_COURSE_TITLE",
+    "semester": "UIC_SEMESTER",
+    "institution": "UIC_INSTITUTION",
+    "unit": "UIC_UNIT",
+}
+
+
+def courseConfig():
+    """Course identity for the header block: code, title, semester, institution,
+    unit. Read from uicCourse.json next to this module, with any field
+    overridable by environment variable (UIC_COURSE_CODE, ...). Never raises -
+    a missing or malformed file just means empty values."""
+    config = dict(courseDefaults)
+    path = _findResource(courseFileName)
+    if path is not None:
+        try:
+            loaded = json.loads(path.read_text())
+            config.update({k: v for k, v in loaded.items() if k in courseDefaults})
+        except (ValueError, OSError):
+            pass
+    for key, envName in courseEnvVars.items():
+        if os.environ.get(envName):
+            config[key] = os.environ[envName]
+    return config
+
+
+_themeApplied = False
+
+
+def applyNotebookTheme(force=False):
+    """Load uicTheme.css into this notebook page. Called once automatically on
+    import; safe to call again. Returns True if the stylesheet was injected.
+
+    Set UIC_THEME=off in the environment to skip it entirely (useful when
+    diffing a notebook's raw appearance, or under nbconvert)."""
+    global _themeApplied
+    if os.environ.get("UIC_THEME", "").lower() in ("off", "0", "false"):
+        return False
+    if _themeApplied and not force:
+        return False
+    try:                       # plain `python -c "import labHelpers"` must stay quiet
+        from IPython import get_ipython
+        if get_ipython() is None:
+            return False
+    except ImportError:
+        return False
+    path = _findResource(themeFileName)
+    if path is None:
+        return False           # no stylesheet shipped: leave Jupyter as-is
+    try:
+        css = path.read_text()
+    except OSError:
+        return False
+    # id lets a re-injection replace rather than stack in tools that dedupe.
+    display(HTML(f'<style id="uic-cs-notebook-theme">\n{css}\n</style>'))
+    _themeApplied = True
+    return True
+
+
+def courseHeader(label=None, title=None, show=True):
+    """Render the compact course identity block for the top of a notebook.
+
+        courseHeader("Lab 03")
+
+    Most notebooks carry this as a markdown cell instead (so it renders before
+    anything is executed); this is the programmatic equivalent for notebooks
+    that are generated rather than authored.
+
+        label   notebook type + number, e.g. "Lab 03", "Lecture 05". Uppercased.
+        title   optional notebook title, rendered as the H1 beneath the header.
+        show    False returns the HTML string instead of displaying it.
+    """
+    config = courseConfig()
+    parts = []
+    if config["courseCode"]:
+        parts.append(f'<span class="uic-course-code">{htmlLib.escape(config["courseCode"])}</span>')
+    if config["courseTitle"]:
+        parts.append(f'<span class="uic-course-title">{htmlLib.escape(config["courseTitle"])}</span>')
+    meta = []
+    if label:
+        meta.append(f'<span class="uic-notebook-label">{htmlLib.escape(str(label))}</span>')
+    if config["semester"]:
+        meta.append(f'<span class="uic-course-term">{htmlLib.escape(config["semester"])}</span>')
+    unitLine = " · ".join(x for x in (config["institution"], config["unit"]) if x)
+    if unitLine:
+        meta.append(f'<span class="uic-course-unit">{htmlLib.escape(unitLine)}</span>')
+    if meta:
+        parts.append('<span class="uic-course-meta">' + "".join(meta) + "</span>")
+    headerHTML = '<div class="uic-course-header">' + "".join(parts) + "</div>"
+    if title:
+        headerHTML += f"<h1>{htmlLib.escape(title)}</h1>"
+    if not show:
+        return headerHTML
+    display(HTML(headerHTML))
+    return None
 
 
 # --------------------------------------------------------------------------
@@ -168,12 +317,16 @@ def showFile(filePath, language=None, title=None, style="monokai", maxLines=None
     showScriptCard(fileText, title=title or path.name, language=language, style=style)
 
 
+# (text, background, accent) per note kind, drawn from the uicTheme.css tokens
+# so a showNote() card and a .uic-note markdown callout look like one system.
+# Note that "warn" is amber rather than UIC red: red is this theme's emphasis
+# color, and spending it on every warning would drain it of meaning.
 noteColors = {
-    "info":    ("#0b3d91", "#e8f0fe", "#1a56db"),
-    "ok":      ("#14532d", "#ecfdf5", "#059669"),
-    "warn":    ("#7c2d12", "#fff7ed", "#d97706"),
-    "error":   ("#7f1d1d", "#fef2f2", "#dc2626"),
-    "tip":     ("#3b0764", "#faf5ff", "#7c3aed"),
+    "info":    ("#12203C", "#F4F7FB", "#001E62"),   # navy   - neutral information
+    "ok":      ("#14351A", "#F1F7F1", "#2E7D32"),   # green  - a check passed
+    "warn":    ("#4A2C00", "#FFF8EF", "#A15C00"),   # amber  - fixable problem
+    "error":   ("#4A100C", "#FDF3F5", "#B3261E"),   # red    - must fix to continue
+    "tip":     ("#0A3A48", "#F2FAFD", "#0A6E8A"),   # blue   - optional advice
 }
 
 
@@ -1084,6 +1237,12 @@ def saveFigure(fig, name, figuresDir="figures", formats=("pdf", "png")):
     showNote("Saved " + ", ".join(f"<code>{p}</code>" for p in written), kind="ok")
     return written
 
+
+# Skin the notebook as soon as the toolkit is imported. On the class Hub the
+# same stylesheet is already loaded by JupyterLab itself, so this is a no-op
+# visually; off-Hub it is what makes the notebook look right. UIC_THEME=off
+# disables it.
+applyNotebookTheme()
 
 print("labHelpers ready - setupLab, preflight, checkpoint, labSummary, feedback, "
       "showFile, showScriptCard, showEnvCard, showNote, applyHouseStyle, saveFigure, "

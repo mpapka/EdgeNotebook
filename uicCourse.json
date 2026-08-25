@@ -1,0 +1,8 @@
+{
+  "_comment": "Course identity for the UIC CS notebook theme (uicTheme.css). Values only - the stylesheet itself names no course. To reuse this notebook toolkit for another class, change these five fields and nothing else. Any field can also be overridden per-session with an environment variable: UIC_COURSE_CODE, UIC_COURSE_TITLE, UIC_SEMESTER, UIC_INSTITUTION, UIC_UNIT.",
+  "courseCode": "CS 494",
+  "courseTitle": "Edge Computing Systems",
+  "semester": "Fall 2026",
+  "institution": "University of Illinois Chicago",
+  "unit": "Computer Science"
+}
