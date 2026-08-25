@@ -151,16 +151,42 @@ def courseConfig():
 _themeApplied = False
 
 
+def bakedThemeInstalled():
+    """True when JupyterLab is already loading the class stylesheet itself.
+
+    On the class Hub the image installs uicTheme.css as jupyter_server's
+    custom.css, so the page is styled before a single cell runs. Detect that by
+    looking where the server actually reads it from - the same derived location
+    the image installs to - rather than sniffing for the Hub."""
+    try:
+        import jupyter_server
+        served = (pathlib.Path(jupyter_server.__file__).parent
+                  / "static" / "custom" / "custom.css")
+        return served.is_file()
+    except Exception:          # not a jupyter_server environment at all
+        return False
+
+
 def applyNotebookTheme(force=False):
     """Load uicTheme.css into this notebook page. Called once automatically on
     import; safe to call again. Returns True if the stylesheet was injected.
 
+    Does NOTHING when JupyterLab is already serving the same stylesheet, which is
+    the case on the class Hub. That is not a tidiness point: display() output is
+    SAVED INTO THE NOTEBOOK, so injecting there wrote the whole stylesheet into
+    every student's every notebook - one lab reached 536 KB - and fat notebooks
+    conflict harder when nbgitpuller next tries to update them, which is how a
+    student ends up silently stranded on an old copy of a lab.
+
     Set UIC_THEME=off in the environment to skip it entirely (useful when
-    diffing a notebook's raw appearance, or under nbconvert)."""
+    diffing a notebook's raw appearance, or under nbconvert). force=True injects
+    even when the page already has it, for iterating on the stylesheet."""
     global _themeApplied
     if os.environ.get("UIC_THEME", "").lower() in ("off", "0", "false"):
         return False
     if _themeApplied and not force:
+        return False
+    if bakedThemeInstalled() and not force:
         return False
     try:                       # plain `python -c "import labHelpers"` must stay quiet
         from IPython import get_ipython
@@ -1238,10 +1264,11 @@ def saveFigure(fig, name, figuresDir="figures", formats=("pdf", "png")):
     return written
 
 
-# Skin the notebook as soon as the toolkit is imported. On the class Hub the
-# same stylesheet is already loaded by JupyterLab itself, so this is a no-op
-# visually; off-Hub it is what makes the notebook look right. UIC_THEME=off
-# disables it.
+# Skin the notebook as soon as the toolkit is imported. On the class Hub
+# JupyterLab already loads the same stylesheet, so this really does nothing there
+# now - it used to be a no-op only VISUALLY, while still writing 23 KB of CSS into
+# the saved notebook. Off-Hub it is what makes the notebook look right.
+# UIC_THEME=off disables it; applyNotebookTheme(force=True) overrides.
 applyNotebookTheme()
 
 print("labHelpers ready - setupLab, preflight, checkpoint, labSummary, feedback, "
