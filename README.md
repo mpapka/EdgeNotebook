@@ -160,6 +160,10 @@ equivalent — because knowing that edge fleets mix hardware is part of the cour
 - `lab00Docker` … `lab09Fleet` — the labs, in course order.
 - `labAALinux`, `labBBPython`, `labCCDataCollection`, `labDDPlotting` — optional on-ramps (before
   the core sequence); `labEEPerformance` — optional cross-device capstone (after it).
+- `Stories/` — one plain-language explainer per lab (`00.md` … `EE.md`, matching the lab codes):
+  what the lab is really about and why it matters, with no code. Prose for reading before or
+  instead of the notebook; `publish.sh` never sends `.md` files to `release`, so these stay
+  instructor-side unless deliberately linked from the course site.
 - `labHelpers.py` — shared toolkit imported by every lab: `setupLab` (per-student identity + ports +
   `labEnv.sh`), `preflight`/`checkpoint` graded checks, `deviceAddress()`, `deviceName()`, and Docker/
   Podman/GPU probes.
