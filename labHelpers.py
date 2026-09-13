@@ -507,6 +507,14 @@ def deviceName():
         return override
     try:
         host = socket.gethostname().split(".")[0].strip().lower()
+        # Inside a JupyterHub lab the container is named "<machine>-<user>", so a
+        # bare hostname would give "cs494-student00" and callers that build
+        # "<user>-<device>" would produce "student00-cs494-student00". Strip the
+        # trailing account name so this reports the machine, which is the thing
+        # telemetry is meant to identify.
+        userName = (os.environ.get("USER") or "").strip().lower()
+        if userName and host.endswith("-" + userName):
+            host = host[: -(len(userName) + 1)]
         if host and host != "localhost":
             return host
     except Exception:
