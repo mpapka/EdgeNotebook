@@ -387,6 +387,23 @@ def showNote(message, kind="info", title=None, link=None, linkText=None):
 # Shell helpers
 # --------------------------------------------------------------------------
 
+# The class machines run rootless podman; there is no Docker daemon. The
+# docker binary is present but cannot connect, so prefer podman and fall back
+# only if podman is genuinely absent.
+CONTAINER_CLI = "podman" if shutil.which("podman") else "docker"
+
+# podman prints this to stderr every time it hands `compose` to the external
+# provider. It is not an error and it wrecks the rich panels, so drop it.
+_PROVIDER_BANNER = re.compile(
+    r"^.*Executing external compose provider.*$\n?", re.MULTILINE)
+_ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+
+def cleanOutput(text):
+    """Strip ANSI colour and podman's compose-provider banner."""
+    return _PROVIDER_BANNER.sub("", _ANSI.sub("", text)).strip("\n")
+
+
 def runShell(command, timeoutSeconds=60):
     """Run a command (list or shell string), capturing stdout+stderr and the
     return code. Never raises."""
@@ -394,7 +411,7 @@ def runShell(command, timeoutSeconds=60):
     try:
         result = subprocess.run(command, capture_output=True, text=True,
                                 shell=useShell, timeout=timeoutSeconds)
-        return result.stdout + result.stderr, result.returncode
+        return cleanOutput(result.stdout + result.stderr), result.returncode
     except FileNotFoundError:
         name = command if useShell else command[0]
         return f"{name}: not found on this machine", 127
@@ -407,15 +424,15 @@ def runShell(command, timeoutSeconds=60):
 # --------------------------------------------------------------------------
 
 def dockerVersions(runHelloWorld=True):
-    """Show docker + compose versions as a panel, optionally verify hello-world."""
-    dockerOut, _ = runShell(["docker", "--version"])
-    composeOut, _ = runShell(["docker", "compose", "version"])
+    """Show podman + compose versions as a panel, optionally verify hello-world."""
+    dockerOut, _ = runShell([CONTAINER_CLI, "--version"])
+    composeOut, _ = runShell([CONTAINER_CLI, "compose", "version"])
     versionLines = dockerOut.strip().splitlines() + composeOut.strip().splitlines()
-    richConsole.print(Panel("\n".join(versionLines) or "docker not available",
-                            title="docker versions", box=box.ROUNDED))
+    richConsole.print(Panel("\n".join(versionLines) or "podman not available",
+                            title="container versions", box=box.ROUNDED))
     if not runHelloWorld:
         return
-    helloOut, _ = runShell(["docker", "run", "--rm", "hello-world"], timeoutSeconds=120)
+    helloOut, _ = runShell([CONTAINER_CLI, "run", "--rm", "hello-world"], timeoutSeconds=120)
     ranOk = "Hello from Docker" in helloOut
     richConsole.print(Panel(
         "[green]hello-world ran successfully[/]" if ranOk
@@ -424,16 +441,16 @@ def dockerVersions(runHelloWorld=True):
 
 
 def dockerPs(namePattern=None, showAll=False):
-    """Render `docker ps` (running containers) as a rich table."""
+    """Render `podman ps` (running containers) as a rich table."""
     fields = "{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}"
-    commandList = ["docker", "ps", "--format", fields] + (["-a"] if showAll else [])
+    commandList = [CONTAINER_CLI, "ps", "--format", fields] + (["-a"] if showAll else [])
     out, code = runShell(commandList)
     rows = [line.split("\t") for line in out.strip().splitlines() if line.strip()]
     if namePattern:
         rows = [row for row in rows if namePattern in row[0]]
     if not rows:
         richConsole.print(Panel("no running containers" if code == 0 else out.strip(),
-                                title="docker ps", box=box.ROUNDED))
+                                title="podman ps", box=box.ROUNDED))
         return
     table = Table(title="containers" if showAll else "running containers",
                   box=box.SIMPLE_HEAVY, row_styles=["", "on grey11"])
@@ -450,7 +467,7 @@ def dockerPs(namePattern=None, showAll=False):
 
 def dockerLogs(container, tail=20):
     """Show the tail of a container's logs in a panel."""
-    out, _ = runShell(["docker", "logs", "--tail", str(tail), container])
+    out, _ = runShell([CONTAINER_CLI, "logs", "--tail", str(tail), container])
     richConsole.print(Panel(out.strip() or "(no output yet)",
                             title=f"logs - {container}", box=box.ROUNDED))
 
@@ -795,27 +812,27 @@ def showDashboard(port=None, path="/", label="your service", subPath=False):
 
 def dockerDaemonUp():
     def probe():
-        out, code = runShell(["docker", "version", "--format", "{{.Server.Version}}"])
+        out, code = runShell([CONTAINER_CLI, "version", "--format", "{{.Server.Version}}"])
         ok = code == 0 and out.strip() and "Cannot connect" not in out and "rror" not in out
-        return bool(ok), (f"server {out.strip()}" if ok else "daemon not reachable")
+        return bool(ok), (f"server {out.strip()}" if ok else "podman not reachable")
     return probe
 
 
 def composeAvailable():
     def probe():
-        out, code = runShell(["docker", "compose", "version", "--short"])
+        out, code = runShell([CONTAINER_CLI, "compose", "version", "--short"])
         ok = code == 0 and out.strip() and "not found" not in out
-        return bool(ok), out.strip()[:60] if ok else "docker compose not found"
+        return bool(ok), out.strip()[:60] if ok else "podman compose not found"
     return probe
 
 
 def nvidiaRuntimeAvailable():
     def probe():
-        info, _ = runShell(["docker", "info"])
+        info, _ = runShell([CONTAINER_CLI, "info"])
         if "nvidia" in info.lower():
             return True, "nvidia runtime available"
         for img in ("docker.io/library/ubuntu:24.04", "ubuntu:24.04", "alpine", "busybox"):
-            out, code = runShell(["docker", "run", "--rm", "--pull=never",
+            out, code = runShell([CONTAINER_CLI, "run", "--rm", "--pull=never",
                                   "--device", "nvidia.com/gpu=all", img, "true"], timeoutSeconds=30)
             if code == 0:
                 return True, "GPU via CDI (nvidia.com/gpu)"
@@ -828,7 +845,7 @@ def nvidiaRuntimeAvailable():
 
 def containerRunning(name):
     def probe():
-        out, _ = runShell(["docker", "ps", "--format", "{{.Names}}"])
+        out, _ = runShell([CONTAINER_CLI, "ps", "--format", "{{.Names}}"])
         names = out.strip().splitlines()
         ok = name in names
         return ok, f"{name} is {'running' if ok else 'NOT running'}"
@@ -837,7 +854,7 @@ def containerRunning(name):
 
 def imageExists(name):
     def probe():
-        out, _ = runShell(["docker", "images", "--format", "{{.Repository}}:{{.Tag}}"])
+        out, _ = runShell([CONTAINER_CLI, "images", "--format", "{{.Repository}}:{{.Tag}}"])
         # Podman lists FULLY-QUALIFIED names (docker.io/library/hello-world:latest,
         # localhost/<user>-nvidia-check:latest), so match on the last path component
         # too, not just a prefix of the whole line.
@@ -850,7 +867,7 @@ def imageExists(name):
 
 def volumeExists(name):
     def probe():
-        out, _ = runShell(["docker", "volume", "ls", "--format", "{{.Name}}"])
+        out, _ = runShell([CONTAINER_CLI, "volume", "ls", "--format", "{{.Name}}"])
         ok = name in out.strip().splitlines()
         return ok, f"volume {name} {'present' if ok else 'not found'}"
     return probe
