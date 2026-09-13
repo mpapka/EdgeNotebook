@@ -7,13 +7,13 @@ Every lab notebook imports this once near the top:
 It provides four things:
 
 1. Pretty output   - showFile / showScriptCard / showEnvCard / showNote and
-                     rich tables for docker (dockerVersions, dockerPs, dockerLogs).
+                     rich tables for containers (containerVersions, containerPs, containerLogs).
 2. Lab setup       - setupLab() derives your unique PORT(s) from the digits in
                      your username, exports them to the notebook environment,
                      and writes labEnv.sh so Jupyter-terminal scripts agree
                      with the notebook.
 3. Preflight       - preflight() renders a pass/fail table of environment
-                     checks before you start (docker daemon, compose, NVIDIA
+                     checks before you start (podman, compose, NVIDIA
                      runtime, commands, python packages...).
 4. Checkpoints     - checkpoint() verifies your work after each part of a lab
                      and gives targeted feedback: what passed, what failed,
@@ -423,7 +423,7 @@ def runShell(command, timeoutSeconds=60):
 # Docker display helpers
 # --------------------------------------------------------------------------
 
-def dockerVersions(runHelloWorld=True):
+def containerVersions(runHelloWorld=True):
     """Show podman + compose versions as a panel, optionally verify hello-world."""
     dockerOut, _ = runShell([CONTAINER_CLI, "--version"])
     composeOut, _ = runShell([CONTAINER_CLI, "compose", "version"])
@@ -440,7 +440,7 @@ def dockerVersions(runHelloWorld=True):
         title="[green]ok[/]" if ranOk else "[yellow]check[/]", box=box.ROUNDED))
 
 
-def dockerPs(namePattern=None, showAll=False):
+def containerPs(namePattern=None, showAll=False):
     """Render `podman ps` (running containers) as a rich table."""
     fields = "{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}"
     commandList = [CONTAINER_CLI, "ps", "--format", fields] + (["-a"] if showAll else [])
@@ -465,7 +465,7 @@ def dockerPs(namePattern=None, showAll=False):
     richConsole.print(table)
 
 
-def dockerLogs(container, tail=20):
+def containerLogs(container, tail=20):
     """Show the tail of a container's logs in a panel."""
     out, _ = runShell([CONTAINER_CLI, "logs", "--tail", str(tail), container])
     richConsole.print(Panel(out.strip() or "(no output yet)",
@@ -850,7 +850,7 @@ def showDashboard(port=None, path="/", label="your service", subPath=False):
         print("%s: %s   |   browser: %s" % (label, target, proxy))
 
 
-def dockerDaemonUp():
+def podmanReachable():
     def probe():
         out, code = runShell([CONTAINER_CLI, "version", "--format", "{{.Server.Version}}"])
         ok = code == 0 and out.strip() and "Cannot connect" not in out and "rror" not in out
@@ -1328,6 +1328,14 @@ def saveFigure(fig, name, figuresDir="figures", formats=("pdf", "png")):
 # UIC_THEME=off disables it; applyNotebookTheme(force=True) overrides.
 applyNotebookTheme()
 
+# Old names, kept so a notebook pulled before the rename still runs if the
+# toolkit updates ahead of it. Nothing in the course calls these.
+dockerVersions = containerVersions
+dockerPs = containerPs
+dockerLogs = containerLogs
+dockerDaemonUp = podmanReachable
+
+
 print("labHelpers ready - setupLab, preflight, checkpoint, labSummary, feedback, "
       "showFile, showScriptCard, showEnvCard, showNote, applyHouseStyle, saveFigure, "
-      "dockerVersions, dockerPs, dockerLogs + check predicates")
+      "containerVersions, containerPs, containerLogs + check predicates")
