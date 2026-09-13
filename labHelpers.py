@@ -521,6 +521,32 @@ def deviceName():
     return "edge"
 
 
+def portIsFree(port):
+    """True if this process can bind the port, False if something already holds it.
+
+    None means "cannot tell from here", and that case is real: inside a
+    JupyterHub lab the notebook runs in its own network namespace, while the
+    containers it starts publish on the HOST. A service on the host (on cs494,
+    JupyterHub holds 8000, 8001 and 8081) is invisible to a bind test run in
+    here, so this would answer True for a port that a container then fails to
+    publish. The lab port bands are therefore chosen to be clear of host
+    services in the first place; this check is the backstop for a shell on the
+    host, where it IS authoritative, which is how the assignments are worked.
+    """
+    if int(port) < 1024:
+        return None                      # privileged: EACCES is not "in use"
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        probe.bind(("0.0.0.0", int(port)))
+        return True
+    except PermissionError:
+        return None
+    except OSError:
+        return False
+    finally:
+        probe.close()
+
+
 def setupLab(labName, ports=None, portOverrides=None, extraEnv=None):
     """Set up this lab's identity, unique ports, and shared labEnv.sh.
 
@@ -557,8 +583,11 @@ def setupLab(labName, ports=None, portOverrides=None, extraEnv=None):
         "# never collide with another student's on the shared host.",
         f"export USER={userName}",
     ]
+    busyPorts = []
     for envName, basePort in ports.items():
         value = int(portOverrides.get(envName, basePort + number))
+        if portIsFree(value) is False:   # None means "cannot tell from here"
+            busyPorts.append((envName, value))
         os.environ[envName] = str(value)
         resolved[envName] = value
         envLines.append(f"export {envName}={value}")   # literal -> terminal matches the notebook
@@ -582,6 +611,17 @@ def setupLab(labName, ports=None, portOverrides=None, extraEnv=None):
     chipValues = {name: value for name, value in resolved.items()
                   if name not in ("labDir", "labEnv")}
     showEnvCard(envPath.read_text(), title=f"{labName}/labEnv.sh", envVars=chipValues)
+    if busyPorts:
+        detail = ", ".join(f"{name}={value}" for name, value in busyPorts)
+        showNote(
+            "Something is already listening on " + detail + ", so a container "
+            "binding it will fail with 'address already in use'. This is not a "
+            "collision with another student; your ports are derived from your "
+            "UID and are yours alone. It means the port range overlaps a service "
+            "this machine runs. Pass portOverrides={\"" + busyPorts[0][0] +
+            "\": <some free port>} to setupLab and tell your instructor, so the "
+            "band can be moved for everyone.",
+            title="Port already in use", kind="warn")
     return resolved
 
 
