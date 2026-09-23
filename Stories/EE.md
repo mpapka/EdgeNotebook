@@ -31,7 +31,7 @@ machine without a fancy graphics chip:
   Python's, not the machine's.
 
 It also records what machine it ran on — name, chip type, core count, memory,
-power — so merged results stay labelled.
+power — so merged results stay labeled.
 
 ```mermaid
 flowchart LR

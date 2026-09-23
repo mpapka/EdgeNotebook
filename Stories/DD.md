@@ -64,7 +64,7 @@ every distinction twice (color *and* a different line style or marker, so it
 survives grayscale); label everything with its units; and write a caption that
 states the finding, not just what the axes are.
 
-Finally you group related plots into one multi-panel figure with labelled parts
+Finally you group related plots into one multi-panel figure with labeled parts
 (a), (b), (c), and export everything twice — a sharp-at-any-size version for
 print, and an ordinary image for slides.
 
@@ -86,7 +86,7 @@ flowchart LR
   Fig["your figure"] --> T1["printed in grayscale"]
   Fig --> T2["viewed by a colorblind reader"]
   Fig --> T3["shrunk into one column"]
-  T1 --> Fix1["colour AND line style AND marker"]
+  T1 --> Fix1["color AND line style AND marker"]
   T2 --> Fix1
   T3 --> Fix2["big enough fonts<br/>labels with units<br/>vector output"]
 ```

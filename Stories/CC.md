@@ -46,7 +46,7 @@ flowchart TD
 ## What you actually do
 
 You invent a small experiment — three AI models of increasing size, measured 30
-times each — and generate numbers with realistic behaviour: bigger models are
+times each — and generate numbers with realistic behavior: bigger models are
 slower, draw more power, and run hotter. Then:
 
 - **Record it tidily.** One row per measurement, one column per thing measured,

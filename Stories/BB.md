@@ -49,7 +49,7 @@ Eight short sections, each building a small file in your own folder:
 2. **Numbers and text** — the difference between `3` and `"riverside"`, and how
    to glue values into a sentence.
 3. **Lists and dictionaries** — the two containers everything in this course
-   travels in. A list is things in order. A dictionary is labelled values, like
+   travels in. A list is things in order. A dictionary is labeled values, like
    a form with named fields.
 4. **Decisions and loops** — `if` chooses, `for` repeats. Together, a few lines
    handle a whole stream of readings instead of one.
@@ -85,7 +85,7 @@ flowchart LR
 - **Kernel** — the Python session behind the page that remembers everything.
 - **Variable** — a name holding a value.
 - **List** — items in order: `[21.5, 22.1, 20.8]`.
-- **Dictionary** — labelled values: `{"site": "riverside", "cpus": 20}`.
+- **Dictionary** — labeled values: `{"site": "riverside", "cpus": 20}`.
 - **Function** — a named block of code you can run again and again.
 - **Traceback** — the error report Python prints when something goes wrong.
 

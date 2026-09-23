@@ -400,7 +400,7 @@ _ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
 
 def cleanOutput(text):
-    """Strip ANSI colour and podman's compose-provider banner."""
+    """Strip ANSI color and podman's compose-provider banner."""
     return _PROVIDER_BANNER.sub("", _ANSI.sub("", text)).strip("\n")
 
 

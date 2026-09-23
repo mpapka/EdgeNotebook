@@ -131,7 +131,7 @@ One optional capstone comes **after** the core sequence: **EE** cross-device per
 on the method from CC, the figures from DD, and the benchmarking ideas from `lab06`, so it is best
 done once those are behind you. Students write one portable `benchmark.py` (run with `uv`, so it
 carries to any machine), measure this DGX and a second device, then merge the results and compare
-compute, memory bandwidth, memory capacity, and sustained thermal behaviour. It ships a real DGX
+compute, memory bandwidth, memory capacity, and sustained thermal behavior. It ships a real DGX
 Spark baseline so the comparison works even from a single machine.
 
 ## The runtime these labs target
