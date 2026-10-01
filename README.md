@@ -167,6 +167,9 @@ equivalent — because knowing that edge fleets mix hardware is part of the cour
 - `labHelpers.py` — shared toolkit imported by every lab: `setupLab` (per-student identity + ports +
   `labEnv.sh`), `preflight`/`checkpoint` graded checks, `deviceAddress()`, `deviceName()`, and Docker/
   Podman/GPU probes.
+- `uicTheme.css`, `uicCourse.json`, `uicDataviz.json` — the UIC look, shipped next to `labHelpers.py`
+  (`publish.sh` sends all four together): the notebook skin, the course identity for its header, and
+  the chart style (series colors, fonts, sizes) that `applyHouseStyle()` applies to matplotlib.
 
 The DGX-side build, provisioning (`roster.sh`), and the one-time adaptation scripts live in the
 [JetsonMachineAdmin](https://github.com/mpapka/JetsonMachineAdmin) repo (`dgxhub/`,

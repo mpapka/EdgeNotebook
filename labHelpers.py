@@ -157,13 +157,24 @@ def bakedThemeInstalled():
     On the class Hub the image installs uicTheme.css as jupyter_server's
     custom.css, so the page is styled before a single cell runs. Detect that by
     looking where the server actually reads it from - the same derived location
-    the image installs to - rather than sniffing for the Hub."""
+    the image installs to - rather than sniffing for the Hub. A personal install
+    in ~/.jupyter/custom/custom.css counts too."""
     try:
         import jupyter_server
         served = (pathlib.Path(jupyter_server.__file__).parent
                   / "static" / "custom" / "custom.css")
-        return served.is_file()
+        if served.is_file():
+            return True
     except Exception:          # not a jupyter_server environment at all
+        pass
+    # A personal install (instructor laptop): the stylesheet copied to the user's
+    # Jupyter config dir as custom/custom.css, with LabApp.custom_css = True.
+    # Only count it when it IS this theme, not some other custom.css.
+    configDir = pathlib.Path(os.environ.get("JUPYTER_CONFIG_DIR", pathlib.Path.home() / ".jupyter"))
+    userCss = configDir / "custom" / "custom.css"
+    try:
+        return userCss.is_file() and themeFileName in userCss.read_text(errors="replace")[:600]
+    except OSError:
         return False
 
 
@@ -1269,43 +1280,144 @@ def feedback(notebook, questions=None, maxStars=5):
 # Publication-quality figures - house style + save helper (labDD)
 # --------------------------------------------------------------------------
 
-# Okabe-Ito: a colorblind-safe qualitative palette. Safe for deuteranopia,
-# protanopia, and grayscale printing when paired with distinct markers.
+# The UIC dataviz style lives in ONE file, uicDataviz.json, next to this module (it
+# ships with uicTheme.css and uicCourse.json). Every chart in the course, matplotlib
+# here or the C++ notebooks' SVG charts, reads its colors, fonts and sizes from it, so
+# they all look the same. The defaults below are the same values: a missing or broken
+# file changes nothing.
+datavizFileName = "uicDataviz.json"
+
+datavizDefaults = {
+    "font": {"matplotlibFamily": ["Helvetica", "Arial", "DejaVu Sans"], "size": 11, "titleSize": 12,
+             "titleWeight": 600, "labelSize": 11, "tickSize": 11, "legendSize": 11},
+    "figure": {"widthInches": 6.0, "heightInches": 3.7, "dpi": 110},
+    "lines": {"width": 1.8, "markerSize": 5, "markers": ["o", "s", "^", "D", "v", "P"]},
+    "grid": {"color": "#B0B0B0", "opacity": 0.3, "width": 0.6},
+    "axes": {"spines": ["left", "bottom"], "width": 0.8, "legendFrame": False},
+    "light": {"surface": "#FFFFFF", "text": "#1F2933", "mutedText": "#5B6573",
+              "categorical": ["#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00", "#56B4E9"]},
+    "dark": {"surface": "#111418", "text": "#E6E9EF", "mutedText": "#A3ACBA",
+             "categorical": ["#3A93D9", "#E26A1F", "#0B8F6C", "#C470A9", "#C48700", "#2F95CF"]},
+    "sequential": ["#E3EEF8", "#C6DDF0", "#A6CAE7", "#84B5DD", "#62A0D2",
+                   "#3E8AC6", "#1F74B5", "#0B5F9C", "#084B7D", "#05385E"],
+    "diverging": ["#0B3D6B", "#0072B2", "#8DC3E6", "#EFEEEA", "#F2B08A", "#D55E00", "#7F3500"],
+}
+
+
+def datavizStyle():
+    """The UIC dataviz style: uicDataviz.json (found like uicTheme.css) merged over the
+    built-in defaults. Never raises."""
+    style = json.loads(json.dumps(datavizDefaults))          # deep copy
+    path = _findResource(datavizFileName)
+    if path is not None:
+        try:
+            loaded = json.loads(path.read_text())
+        except (ValueError, OSError):
+            loaded = {}
+        for key, value in loaded.items():
+            if key.startswith("_"):
+                continue                                      # comments
+            if isinstance(value, dict) and isinstance(style.get(key), dict):
+                style[key].update(value)
+            else:
+                style[key] = value
+    return style
+
+
+class Cycle(list):
+    """A list that wraps around: palette[7] is palette[1]. The palette has six validated
+    colors; a seventh series reuses a color, so also vary FIGURE_MARKERS (which wrap the
+    same way) and the series stay distinguishable."""
+    def __getitem__(self, index):
+        if isinstance(index, int) and len(self):
+            index %= len(self)
+        return super().__getitem__(index)
+
+
+# Okabe-Ito, the colorblind-safe palette the house style is built on (all eight, for
+# reference). Series use the first six from uicDataviz.json: yellow disappears on white
+# and black is the text color.
 OKABE_ITO = ["#0072B2", "#D55E00", "#009E73", "#CC79A7",
              "#E69F00", "#56B4E9", "#F0E442", "#000000"]
-FIGURE_MARKERS = ["o", "s", "^", "D", "v", "P", "X", "*"]
+FIGURE_MARKERS = Cycle(datavizStyle()["lines"]["markers"])
 FIGURE_LINESTYLES = ["-", "--", "-.", ":"]
 
 
-def applyHouseStyle():
-    """Set matplotlib rcParams for report and paper quality figures: readable
-    fonts, a colorblind-safe color cycle, light grid, no top/right spines, and
+def applyHouseStyle(dark=False):
+    """Set matplotlib rcParams from the UIC dataviz style (uicDataviz.json): readable
+    fonts, the colorblind-safe color cycle, light grid, no top/right spines, and
     vector-friendly output. Call once near the top of a plotting notebook.
-    Returns the color palette so you can index it per series."""
+    dark=True uses the dark-mode colors (for slides or a dark JupyterLab).
+    Returns the color palette so you can index it per series (it wraps around)."""
     ensureDependencies(["matplotlib"])
     import matplotlib as mpl
     from cycler import cycler
+    from matplotlib import font_manager
+    style = datavizStyle()
+    mode = style["dark" if dark else "light"]
+    font, figure, lines = style["font"], style["figure"], style["lines"]
+    grid, axes = style["grid"], style["axes"]
+    # Only fonts that are installed, so a machine without Helvetica does not warn
+    installed = {entry.name for entry in font_manager.fontManager.ttflist}
+    families = [name for name in font["matplotlibFamily"] if name in installed] or ["DejaVu Sans"]
+    # Title weight: use the style's (600, semibold) when the font has that face, else
+    # the nearest heavier one, instead of a findfont warning on every title
+    titleWeight = font["titleWeight"]
+    weights = {entry.weight for entry in font_manager.fontManager.ttflist if entry.name == families[0]}
+    if titleWeight not in weights:
+        heavier = sorted(w for w in weights if isinstance(w, int) and w >= titleWeight)
+        titleWeight = heavier[0] if heavier else "bold"
+    spines = set(axes["spines"])
     mpl.rcParams.update({
-        "figure.figsize": (6.0, 3.7),
-        "figure.dpi": 110,
+        "figure.figsize": (figure["widthInches"], figure["heightInches"]),
+        "figure.dpi": figure["dpi"],
         "savefig.dpi": 300,
         "savefig.bbox": "tight",
-        "font.size": 11,
-        "axes.titlesize": 12,
-        "axes.labelsize": 11,
+        "font.family": "sans-serif",
+        "font.sans-serif": families,
+        "font.size": font["size"],
+        "axes.titlesize": font["titleSize"],
+        "axes.titleweight": titleWeight,
+        "axes.titlelocation": "left",
+        "axes.labelsize": font["labelSize"],
+        "xtick.labelsize": font["tickSize"],
+        "ytick.labelsize": font["tickSize"],
+        "legend.fontsize": font["legendSize"],
         "axes.grid": True,
-        "grid.alpha": 0.3,
-        "grid.linewidth": 0.6,
-        "axes.spines.top": False,
-        "axes.spines.right": False,
-        "axes.prop_cycle": cycler(color=OKABE_ITO),
-        "legend.frameon": False,
-        "lines.linewidth": 1.8,
-        "lines.markersize": 5,
+        "grid.color": grid["color"],
+        "grid.alpha": grid["opacity"],
+        "grid.linewidth": grid["width"],
+        "axes.spines.left": "left" in spines,
+        "axes.spines.bottom": "bottom" in spines,
+        "axes.spines.top": "top" in spines,
+        "axes.spines.right": "right" in spines,
+        "axes.linewidth": axes["width"],
+        "axes.edgecolor": mode["mutedText"],
+        "axes.prop_cycle": cycler(color=mode["categorical"]),
+        "legend.frameon": axes["legendFrame"],
+        "lines.linewidth": lines["width"],
+        "lines.markersize": lines["markerSize"],
+        "text.color": mode["text"],
+        "axes.labelcolor": mode["text"],
+        "axes.titlecolor": mode["text"],
+        "xtick.color": mode["mutedText"],
+        "ytick.color": mode["mutedText"],
+        "figure.facecolor": mode["surface"],
+        "axes.facecolor": mode["surface"],
+        "savefig.facecolor": mode["surface"],
         "pdf.fonttype": 42,   # embed TrueType so text stays editable in the PDF
         "ps.fonttype": 42,
     })
-    return list(OKABE_ITO)
+    return Cycle(mode["categorical"])
+
+
+def datavizColormap(kind="sequential"):
+    """A matplotlib colormap from the UIC dataviz style: "sequential" (one hue, light to
+    dark, for magnitudes) or "diverging" (blue - neutral - vermillion, for signed
+    values centered on zero)."""
+    ensureDependencies(["matplotlib"])
+    from matplotlib.colors import LinearSegmentedColormap
+    return LinearSegmentedColormap.from_list(f"uic{kind.capitalize()}", datavizStyle()[kind])
 
 
 def saveFigure(fig, name, figuresDir="figures", formats=("pdf", "png")):

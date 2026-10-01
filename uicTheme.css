@@ -425,6 +425,15 @@ body[data-jp-theme-light="false"] .jp-RenderedHTMLCommon .uic-notebook-label {
 
 /* The notebook's own H1 sits directly under the header; it does not need the
    extra top margin it would get at the top of a document. */
+/* Institution line on top: when .uic-course-unit is a direct child of the header
+   (not inside .uic-course-meta), it takes a full-width first row above the course
+   code and title, and the notebook label stays alone on the right of the row below.
+   Headers that keep the unit inside .uic-course-meta render as before. */
+.jp-RenderedHTMLCommon .uic-course-header > .uic-course-unit {
+  order: -1;
+  flex-basis: 100%;
+}
+
 .jp-RenderedHTMLCommon .uic-course-header + h1 {
   margin-top: 0.25rem;
 }

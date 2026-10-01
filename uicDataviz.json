@@ -1,0 +1,63 @@
+{
+  "_comment": "UIC dataviz style: one look for every chart in the course notebooks, Python (matplotlib) or C++ (hpcViz.h). It formalizes labHelpers.applyHouseStyle(): the same Okabe-Ito series colors, sizes, grid and axes, plus validated dark-mode steps, text colors from uicTheme.css, and sequential/diverging maps for fields. Sizes are in points, as matplotlib uses them; the SVG charts convert them to pixels at figure.dpi (1 pt = dpi/72 px), so both render the same at the same figure size. Titles are left-aligned. Change values here, not in code.",
+
+  "font": {
+    "family": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif",
+    "matplotlibFamily": ["Helvetica", "Arial", "DejaVu Sans"],
+    "size": 11,
+    "titleSize": 12,
+    "titleWeight": 600,
+    "labelSize": 11,
+    "tickSize": 11,
+    "legendSize": 11
+  },
+
+  "figure": {
+    "widthInches": 6.0,
+    "heightInches": 3.7,
+    "dpi": 110,
+    "width": 660,
+    "height": 408
+  },
+
+  "lines": {
+    "width": 1.8,
+    "markerSize": 5,
+    "markers": ["o", "s", "^", "D", "v", "P"],
+    "referenceDash": [5, 4]
+  },
+
+  "grid": {
+    "color": "#B0B0B0",
+    "opacity": 0.3,
+    "width": 0.6
+  },
+
+  "axes": {
+    "spines": ["left", "bottom"],
+    "width": 0.8,
+    "legendFrame": false
+  },
+
+  "light": {
+    "surface": "#FFFFFF",
+    "text": "#1F2933",
+    "mutedText": "#5B6573",
+    "reference": "#8A9099",
+    "categorical": ["#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00", "#56B4E9"]
+  },
+
+  "dark": {
+    "surface": "#111418",
+    "text": "#E6E9EF",
+    "mutedText": "#A3ACBA",
+    "reference": "#7C8491",
+    "categorical": ["#3A93D9", "#E26A1F", "#0B8F6C", "#C470A9", "#C48700", "#2F95CF"]
+  },
+
+  "_categoricalNotes": "Okabe-Ito, first six slots in labHelpers order; validated (dataviz validator) on #FFFFFF and #111418. Okabe-Ito yellow #F0E442 and black are not used for series (yellow disappears on white, black is text). Slots 3 and 4 (green, pink) are close for deuteranopes, so series always also differ by marker shape, and charts carry a legend and direct labels. More than six series: fold into 'other' or use small multiples; ordered ids (threads, ranks) beyond six use the sequential ramp.",
+
+  "sequential": ["#E3EEF8", "#C6DDF0", "#A6CAE7", "#84B5DD", "#62A0D2", "#3E8AC6", "#1F74B5", "#0B5F9C", "#084B7D", "#05385E"],
+
+  "diverging": ["#0B3D6B", "#0072B2", "#8DC3E6", "#EFEEEA", "#F2B08A", "#D55E00", "#7F3500"]
+}

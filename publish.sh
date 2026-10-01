@@ -36,8 +36,9 @@ SITE="${COURSE_SITE_DIR:-$(dirname "$REPO")/UIC_Course_Website}"
 # toolkit, not just the module: labHelpers finds uicTheme.css by looking NEXT TO
 # itself, so shipping the module alone leaves applyNotebookTheme() with nothing to
 # load -- and it fails SILENTLY by design, so the labs would simply arrive unskinned
-# with nothing in any log to say why. These three travel together.
-toolkit=(labHelpers.py uicTheme.css uicCourse.json)
+# with nothing in any log to say why. These travel together (uicDataviz.json is the
+# chart style applyHouseStyle() reads; without it charts quietly fall back to defaults).
+toolkit=(labHelpers.py uicTheme.css uicCourse.json uicDataviz.json)
 
 git -C "$REPO" fetch -q origin release
 if ! git -C "$REPO" worktree list --porcelain | grep -qx "worktree $WT"; then
