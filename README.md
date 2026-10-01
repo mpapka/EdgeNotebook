@@ -169,5 +169,5 @@ equivalent — because knowing that edge fleets mix hardware is part of the cour
   Podman/GPU probes.
 
 The DGX-side build, provisioning (`roster.sh`), and the one-time adaptation scripts live in the
-[JetsonMachineAdmin](https://github.com/mpapka/JetsonMachineAdmin) repo (`dgxhub/`,
+[NVIDIAMachineAdmin](https://github.com/mpapka/NVIDIAMachineAdmin) repo (`dgxhub/`,
 `DGX-SPARK-JUPYTERHUB-BUILD.md`).
